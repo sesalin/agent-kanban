@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agent_kanban.auth import Principal, get_current_principal
 from agent_kanban.db import get_session
 from agent_kanban.models import TaskStatus
+from agent_kanban.permissions import require_task
 from agent_kanban.schemas import TaskCreate, TaskRead, TaskUpdate
 from agent_kanban.services import create_task, get_task, list_tasks, update_task
 
@@ -17,11 +18,13 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 async def get_tasks(
     status: Optional[TaskStatus] = None,
     tags_any: Optional[str] = None,
+    project_id: int | None = None,
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ):
     tags = tags_any.split(",") if tags_any else None
-    return await list_tasks(session, status, tags)
+    agent = principal.agent_name if principal.is_token else None
+    return await list_tasks(session, status, tags, agent, project_id=project_id)
 
 
 @router.post("", response_model=TaskRead, status_code=201)
@@ -30,6 +33,8 @@ async def post_task(
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ):
+    if principal.is_token:
+        raise HTTPException(403, "agents must use the dispatch endpoint")
     return await create_task(session, data)
 
 
@@ -39,6 +44,8 @@ async def get_one(
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ):
+    if principal.is_token:
+        return await require_task(session, task_id, principal.agent_name)
     try:
         return await get_task(session, task_id)
     except ValueError:
@@ -52,6 +59,8 @@ async def patch_task(
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ):
+    if principal.is_token:
+        raise HTTPException(403, "task editing requires a user session")
     try:
         return await update_task(session, task_id, data)
     except ValueError:

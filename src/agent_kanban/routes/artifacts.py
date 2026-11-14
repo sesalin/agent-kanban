@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agent_kanban.auth import Principal, get_current_principal
 from agent_kanban.db import get_session
 from agent_kanban.models import Artifact, Task
+from agent_kanban.permissions import require_project
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 
@@ -44,6 +45,9 @@ async def get_artifact_content(
     task = await session.get(Task, art.task_id)
     if task is None:
         raise HTTPException(404, "task not found")
+
+    if principal.is_token:
+        await require_project(session, principal.agent_name, task.project_id)
 
     allowed_roots = [
         str(Path.home() / ".agent-kanban" / "artifacts" / str(task.id)),

@@ -20,7 +20,7 @@ async def ws_endpoint(
     # 1. Ticket path (preferred) — no DB hit, single-use nonce.
     if ticket:
         principal = resolve_ticket(ticket)
-        if principal is not None:
+        if principal is not None and principal.is_user:
             await websocket.accept()
             await _stream(websocket, task_id)
             return

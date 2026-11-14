@@ -97,12 +97,14 @@ async def ws_ticket(request: Request, principal: Principal = Depends(get_current
     """Mint a single-use ticket for WebSocket authentication.
 
     The WS cannot set Authorization headers (browser limitation), so for
-    cross-origin WS the frontend posts this endpoint (cookie/bearer authed)
+    cross-origin WS the frontend posts this endpoint with its session cookie
     and connects the socket with ?ticket=<nonce>. The nonce is single-use
     and expires in 60s, so it never leaks the bearer into proxy logs.
     """
     from agent_kanban.auth import mint_ticket
 
+    if not principal.is_user:
+        raise HTTPException(403, "board WebSocket requires a user session")
     return {"ticket": mint_ticket(principal), "expires_in": 60}
 
 

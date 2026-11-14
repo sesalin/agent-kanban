@@ -20,31 +20,26 @@ routes MCP tool calls to the throwaway DB.
 """
 import contextvars
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
-
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from starlette.types import ASGIApp, Receive, Scope, Send
+from typing import Any, AsyncIterator, Literal, Optional
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.types import ASGIApp, Receive, Scope, Send
 
+from agent_kanban import services
 from agent_kanban.auth import Principal, _resolve_bearer
 from agent_kanban.config import get_settings
 from agent_kanban.db import _engine_for
 from agent_kanban.models import ProgressKind, TaskStatus  # noqa: F401
-from agent_kanban.schemas import ArtifactCreate, ProgressCreate
-from agent_kanban.services import (
-    claim_task as svc_claim_task,
-    complete_task as svc_complete_task,
-    get_next_task as svc_get_next_task,
-    list_comments as svc_list_comments,
-    list_tasks as svc_list_tasks,
-    post_artifact as svc_post_artifact,
-    post_comment as svc_post_comment,
-    post_progress as svc_post_progress,
-    request_review as svc_request_review,
-    set_task_branch as svc_set_task_branch,
-    set_task_pr as svc_set_task_pr,
+from agent_kanban.permissions import require_task
+from agent_kanban.schemas import (
+    ArtifactCreate,
+    DispatchTask,
+    Heartbeat,
+    ProgressCreate,
+    SubmitReview,
+    TaskRead,
 )
 
 # --- MCP principal resolution -------------------------------------------------
@@ -147,25 +142,11 @@ async def session() -> AsyncIterator[AsyncSession]:
 
 
 def _task_to_dict(task) -> dict:
-    return {
-        "id": task.id,
-        "title": task.title,
-        "description": task.description,
-        "status": task.status.value if hasattr(task.status, "value") else task.status,
-        "tags": task.tags,
-        "claimed_by": task.claimed_by,
-        "claimed_at": task.claimed_at.isoformat() + "Z" if task.claimed_at else None,
-        "assigned_to": task.assigned_to,
-        "project_id": task.project_id,
-        "sort_order": task.sort_order,
-        "repo_path": task.repo_path,
-        "base_branch": task.base_branch,
-        "branch": task.branch,
-        "pr_url": task.pr_url,
-        "pr_status": task.pr_status,
-        "created_at": task.created_at.isoformat() + "Z",
-        "updated_at": task.updated_at.isoformat() + "Z",
-    }
+    result = TaskRead.model_validate(task).model_dump(mode="json")
+    for field in ("claimed_at", "created_at", "updated_at", "last_heartbeat_at", "completed_at"):
+        if result[field]:
+            result[field] += "Z"
+    return result
 
 
 def create_mcp() -> FastMCP:
@@ -182,6 +163,7 @@ def create_mcp() -> FastMCP:
     public deployment (e.g. kanban.example.com) is reachable by agents without
     hitting "Invalid Host header".
     """
+    # Stateless requests keep the authenticated principal bound to each tool call.
     # `streamable_http_path="/"` makes the inner Starlette route resolve at "/"
     # so that mounting the app under "/mcp" in server.py yields a canonical
     # endpoint of "/mcp/" (with "/mcp" 307-redirecting to it). Without this the
@@ -195,6 +177,7 @@ def create_mcp() -> FastMCP:
     mcp = FastMCP(
         "agent-kanban",
         streamable_http_path="/",
+        stateless_http=True,
         transport_security=security,
     )
 
@@ -218,7 +201,7 @@ def create_mcp() -> FastMCP:
         """
         principal = await _require_any_principal()
         async with session() as s:
-            task = await svc_get_next_task(
+            task = await services.get_next_task(
                 s, tags_any, tags_all, exclude_tags, agent=principal.agent_name
             )
             if task is None:
@@ -226,14 +209,14 @@ def create_mcp() -> FastMCP:
             return _task_to_dict(task)
 
     @mcp.tool()
-    async def claim_task(task_id: int, agent: str) -> dict:
+    async def claim_task(task_id: int, agent: str | None = None) -> dict:
         """Atomically claim a ready task. Sets status to in_progress.
 
         Returns {ok: bool, reason: str?, task: Task?}.
         """
-        await _require_matching_agent(agent)
+        principal = await (_require_any_principal() if agent is None else _require_matching_agent(agent))
         async with session() as s:
-            result = await svc_claim_task(s, task_id, agent)
+            result = await services.claim_task(s, task_id, principal.agent_name, enforce_grant=True)
             return {
                 "ok": result.ok,
                 "reason": result.reason,
@@ -242,17 +225,19 @@ def create_mcp() -> FastMCP:
 
     @mcp.tool()
     async def list_tasks(
-        status: Optional[str] = None, tags_any: Optional[list[str]] = None
+        status: Optional[str] = None, tags_any: Optional[list[str]] = None,
+        project_id: int | None = None,
     ) -> list[dict]:
         """List tasks, optionally filtered by status and/or tags. Does not claim.
 
-        Only tasks that are unassigned OR assigned to the calling agent are
-        returned — tasks reserved for other agents are hidden.
+        Orchestrators can also see tasks reserved for workers in projects they manage.
         """
         principal = await _require_any_principal()
         status_enum = TaskStatus(status) if status else None
         async with session() as s:
-            tasks = await svc_list_tasks(s, status_enum, tags_any, agent=principal.agent_name)
+            tasks = await services.list_tasks(
+                s, status_enum, tags_any, agent=principal.agent_name, project_id=project_id
+            )
             return [_task_to_dict(t) for t in tasks]
 
     @mcp.tool()
@@ -275,7 +260,7 @@ def create_mcp() -> FastMCP:
         """
         await _require_matching_agent(agent)
         async with session() as s:
-            ev = await svc_post_progress(
+            ev = await services.post_progress(
                 s,
                 task_id,
                 ProgressCreate(
@@ -285,6 +270,7 @@ def create_mcp() -> FastMCP:
                     artifact=artifact,
                     status=status,
                 ),
+                enforce_grant=True,
             )
             return {
                 "id": ev.id,
@@ -299,7 +285,7 @@ def create_mcp() -> FastMCP:
         """Mark a task done. Requires task.claimed_by == agent."""
         await _require_matching_agent(agent)
         async with session() as s:
-            task = await svc_complete_task(s, task_id, agent, summary)
+            task = await services.complete_task(s, task_id, agent, summary, enforce_grant=True)
             return _task_to_dict(task)
 
     @mcp.tool()
@@ -309,7 +295,7 @@ def create_mcp() -> FastMCP:
         """Mark a task ready for review. Requires task.claimed_by == agent."""
         await _require_matching_agent(agent)
         async with session() as s:
-            task = await svc_request_review(s, task_id, agent, summary)
+            task = await services.request_review(s, task_id, agent, summary, enforce_grant=True)
             return _task_to_dict(task)
 
     @mcp.tool()
@@ -330,7 +316,8 @@ def create_mcp() -> FastMCP:
         # (which never actually call this tool), the original agent arg applies.
         mark_seen_by = principal.agent_name if principal.is_token else agent
         async with session() as s:
-            comments = await svc_list_comments(s, task_id, since_id, mark_seen_by)
+            await require_task(s, task_id, principal.agent_name)
+            comments = await services.list_comments(s, task_id, since_id, mark_seen_by)
             return [
                 {
                     "id": c.id,
@@ -347,7 +334,8 @@ def create_mcp() -> FastMCP:
         """Post a comment authored by the calling agent."""
         await _require_matching_agent(agent)
         async with session() as s:
-            c = await svc_post_comment(s, task_id, agent, content)
+            await require_task(s, task_id, agent, lock=True)
+            c = await services.post_comment(s, task_id, agent, content)
             return {"id": c.id, "created_at": c.created_at.isoformat()}
 
     @mcp.tool()
@@ -364,12 +352,13 @@ def create_mcp() -> FastMCP:
         """
         await _require_matching_agent(agent)
         async with session() as s:
-            art = await svc_post_artifact(
+            art = await services.post_artifact(
                 s,
                 task_id,
                 ArtifactCreate(
                     agent=agent, kind=kind, path=path, description=description
                 ),
+                enforce_grant=True,
             )
             return {"id": art.id, "path": art.path, "kind": art.kind}
 
@@ -382,7 +371,7 @@ def create_mcp() -> FastMCP:
         """
         await _require_matching_agent(agent)
         async with session() as s:
-            task = await svc_set_task_branch(s, task_id, agent, branch)
+            task = await services.set_task_branch(s, task_id, agent, branch, enforce_grant=True)
             return _task_to_dict(task)
 
     @mcp.tool()
@@ -395,7 +384,79 @@ def create_mcp() -> FastMCP:
         """
         await _require_matching_agent(agent)
         async with session() as s:
-            task = await svc_set_task_pr(s, task_id, agent, pr_url, status)
+            task = await services.set_task_pr(s, task_id, agent, pr_url, status, enforce_grant=True)
+            return _task_to_dict(task)
+
+    @mcp.tool()
+    async def list_my_tasks(project_id: int | None = None) -> list[dict]:
+        """List ready tasks this agent can claim, in priority order."""
+        principal = await _require_any_principal()
+        async with session() as s:
+            tasks = await services.list_tasks(
+                s, TaskStatus.READY, agent=principal.agent_name, project_id=project_id, claimable=True
+            )
+            return [_task_to_dict(task) for task in tasks]
+
+    @mcp.tool()
+    async def dispatch_task(
+        project_id: int,
+        title: str,
+        description: str = "",
+        assigned_to: str | None = None,
+        priority: Literal["URGENT", "HIGH", "MEDIUM", "LOW"] = "MEDIUM",
+        dependencies: list[int] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict:
+        """Dispatch a task in a project where the token has the orchestrator role."""
+        principal = await _require_any_principal()
+        data = DispatchTask(
+            project_id=project_id, title=title, description=description, assigned_to=assigned_to,
+            priority=priority, dependencies=dependencies or [], metadata=metadata or {},
+        )
+        async with session() as s:
+            return _task_to_dict(await services.dispatch_task(s, principal.agent_name, data))
+
+    @mcp.tool()
+    async def review_task(
+        task_id: int, verdict: Literal["APPROVE", "REJECT"], feedback: str = ""
+    ) -> dict:
+        """Approve or return a submitted task. Requires the project's orchestrator role."""
+        principal = await _require_any_principal()
+        async with session() as s:
+            task = await services.review_task(s, task_id, principal.agent_name, verdict, feedback)
+            return _task_to_dict(task)
+
+    @mcp.tool()
+    async def reassign_stalled_task(task_id: int, new_agent_name: str) -> dict:
+        """Reassign an in-progress task after 15 minutes without activity."""
+        principal = await _require_any_principal()
+        async with session() as s:
+            task = await services.reassign_stalled_task(s, task_id, principal.agent_name, new_agent_name)
+            return _task_to_dict(task)
+
+    @mcp.tool()
+    async def heartbeat_and_progress(
+        task_id: int, notes: str = "", git_branch: str | None = None,
+        git_pr_url: str | None = None, git_commit_hash: str | None = None,
+    ) -> dict:
+        """Renew ownership activity and optionally report notes or Git metadata."""
+        principal = await _require_any_principal()
+        data = Heartbeat(
+            notes=notes, git_branch=git_branch, git_pr_url=git_pr_url, git_commit_hash=git_commit_hash
+        )
+        async with session() as s:
+            task = await services.heartbeat_and_progress(s, task_id, principal.agent_name, data)
+            return _task_to_dict(task)
+
+    @mcp.tool()
+    async def submit_for_review(
+        task_id: int, summary_of_work: str, artifacts: list[str] | None = None
+    ) -> dict:
+        """Submit work for review, optionally including paths, PR URLs or diffs as evidence."""
+        principal = await _require_any_principal()
+        data = SubmitReview(summary_of_work=summary_of_work, artifacts=artifacts or [])
+        async with session() as s:
+            task = await services.submit_for_review(s, task_id, principal.agent_name, data)
             return _task_to_dict(task)
 
     return mcp

@@ -4,6 +4,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -14,8 +15,10 @@ from starlette.requests import Request
 
 from agent_kanban.config import get_settings
 from agent_kanban.mcp_server import MCPAuthMiddleware, create_mcp
+from agent_kanban.permissions import ProjectAccessDenied, TaskNotFound
 from agent_kanban.ratelimit import limiter
-from agent_kanban.routes import artifacts, auth as auth_routes, comments, progress, projects, tasks, ws
+from agent_kanban.routes import artifacts, comments, orchestration, progress, projects, tasks, ws
+from agent_kanban.routes import auth as auth_routes
 
 
 class _MCPTrailingSlashMiddleware(BaseHTTPMiddleware):
@@ -131,6 +134,15 @@ def create_app() -> FastAPI:
     # Trailing-slash rewrite for /mcp. Registered LAST so it's the outermost
     # layer and runs before routing dispatches to the mounted sub-app.
     app.add_middleware(_MCPTrailingSlashMiddleware)
+    @app.exception_handler(ProjectAccessDenied)
+    async def project_access_denied(request: Request, error: ProjectAccessDenied):
+        return JSONResponse({"detail": str(error)}, status_code=403)
+
+    @app.exception_handler(TaskNotFound)
+    async def task_not_found(request: Request, error: TaskNotFound):
+        return JSONResponse({"detail": str(error)}, status_code=404)
+
+    app.include_router(orchestration.router)
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(progress.router)

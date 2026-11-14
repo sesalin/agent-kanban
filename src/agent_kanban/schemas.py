@@ -1,6 +1,6 @@
 """Pydantic schemas for the API surface (REST + MCP)."""
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -74,6 +74,13 @@ class TaskRead(ReadBase):
     claimed_by: Optional[str] = None
     claimed_at: Optional[datetime] = None
     assigned_to: Optional[str] = None
+    priority: str = "MEDIUM"
+    dependencies: list[int] = Field(default_factory=list)
+    metadata_payload: dict[str, Any] = Field(default_factory=dict)
+    created_by: str = "system"
+    last_heartbeat_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    git_commit_hash: Optional[str] = None
     sort_order: float
     repo_path: Optional[str] = None
     base_branch: Optional[str] = None
@@ -139,3 +146,34 @@ class ClaimResult(BaseModel):
     ok: bool
     reason: Optional[str] = None
     task: Optional[TaskRead] = None
+
+
+class DispatchTask(BaseModel):
+    project_id: int
+    title: str = Field(min_length=1)
+    description: str = ""
+    assigned_to: Optional[str] = None
+    priority: Literal["URGENT", "HIGH", "MEDIUM", "LOW"] = "MEDIUM"
+    dependencies: list[int] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReviewTask(BaseModel):
+    verdict: Literal["APPROVE", "REJECT"]
+    feedback: str = ""
+
+
+class ReassignTask(BaseModel):
+    new_agent_name: str
+
+
+class Heartbeat(BaseModel):
+    notes: str = ""
+    git_branch: Optional[str] = None
+    git_pr_url: Optional[str] = None
+    git_commit_hash: Optional[str] = None
+
+
+class SubmitReview(BaseModel):
+    summary_of_work: str
+    artifacts: list[str] = Field(default_factory=list)

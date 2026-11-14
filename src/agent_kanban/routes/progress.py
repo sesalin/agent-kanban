@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_kanban.auth import Principal, get_current_principal
 from agent_kanban.db import get_session
-from agent_kanban.models import ProgressEvent
+from agent_kanban.models import ProgressEvent, Task
+from agent_kanban.permissions import authorized_projects, require_task
 
 router = APIRouter(tags=["progress"])
 
@@ -15,6 +16,8 @@ async def list_progress(
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(get_current_principal),
 ):
+    if principal.is_token:
+        await require_task(session, task_id, principal.agent_name)
     stmt = (
         select(ProgressEvent)
         .where(ProgressEvent.task_id == task_id)
@@ -47,5 +50,9 @@ async def last_progress_timestamps(
         )
         .group_by(ProgressEvent.task_id)
     )
+    if principal.is_token:
+        stmt = stmt.join(Task, Task.id == ProgressEvent.task_id).where(
+            Task.project_id.in_(authorized_projects(principal.agent_name))
+        )
     result = await session.execute(stmt)
     return {row.task_id: row.last_at.isoformat() + "Z" for row in result.all()}

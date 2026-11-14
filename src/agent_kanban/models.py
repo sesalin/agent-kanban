@@ -3,7 +3,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Optional
 
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
@@ -34,6 +36,11 @@ class Project(SQLModel, table=True):
 
 
 class Task(SQLModel, table=True):
+    __table_args__ = (
+        Index("ix_task_project_status", "project_id", "status"),
+        Index("ix_task_claim_lookup", "id", "status", "assigned_to"),
+        Index("ix_task_dependencies_gin", "dependencies", postgresql_using="gin"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: Optional[int] = Field(default=None, foreign_key="project.id")
     title: str
@@ -58,6 +65,17 @@ class Task(SQLModel, table=True):
     # human operator — agents themselves cannot assign.
     assigned_to: Optional[str] = Field(default=None, index=True)
     sort_order: float = Field(default=0.0)
+    priority: str = Field(default="MEDIUM", max_length=20)
+    dependencies: list[int] = Field(
+        default_factory=list, sa_column=Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    )
+    metadata_payload: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    )
+    created_by: str = Field(default="system")
+    last_heartbeat_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    git_commit_hash: Optional[str] = None
     # Phase 3 fields (present now so migrations are stable; unused in Phase 1)
     repo_path: Optional[str] = None
     base_branch: Optional[str] = None
@@ -120,3 +138,43 @@ class Token(SQLModel, table=True):
     created_by_user_id: int = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
     last_used_at: Optional[datetime] = None
+
+
+class AgentProject(SQLModel, table=True):
+    __tablename__ = "agent_projects"
+    __table_args__ = (
+        UniqueConstraint("agent_name", "project_id", name="uq_agent_project"),
+        CheckConstraint("role IN ('orchestrator', 'worker', 'observer')", name="ck_agent_role"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    agent_name: str
+    project_id: int = Field(foreign_key="project.id", index=True, ondelete="CASCADE")
+    role: str = Field(default="worker", max_length=30)
+    can_read: bool = True
+    can_claim: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
+
+
+class OutboundWebhook(SQLModel, table=True):
+    __tablename__ = "outbound_webhooks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True, ondelete="CASCADE")
+    target_url: str
+    secret_token: Optional[str] = Field(default=None, max_length=255)
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
+
+
+class TaskEvent(SQLModel, table=True):
+    __tablename__ = "task_events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="task.id", index=True, ondelete="CASCADE")
+    event_type: str = Field(max_length=50)
+    agent_name: str
+    details: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
