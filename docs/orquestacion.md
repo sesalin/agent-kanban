@@ -1,5 +1,7 @@
 # Agent Kanban · acceso y orquestación
 
+Para configurar el orquestador en Windows, consulta la [guía MCP para Hermes](hermes-mcp.md).
+
 ## Acceso local
 
 En un entorno local con el puerto publicado en loopback, abre el tablero en [localhost:7331](http://localhost:7331/). La primera pantalla permite crear el administrador. Para la instancia en operación, consulta el despliegue en kk.okehc.com. PostgreSQL 17 usa un volumen de Compose y permanece en la red interna. Si un agente corre en otra máquina, necesita una dirección alcanzable para el tablero. Configura esa dirección en `PUBLIC_URL` para autorizar su hostname en el transporte MCP.
@@ -97,9 +99,11 @@ Ejecutado desde la raíz con el entorno Python del proyecto y PostgreSQL 17 de p
 
 Los tres casos pasaron. En una instancia desechable construida con la misma imagen de aplicación se verificaron tokens independientes para ambos roles, despacho y revisión cruzando MCP y REST, reclamo y heartbeat por ambos transportes, y rechazo de acceso entre proyectos. Se verificó el disparo de webhooks con un mock dentro de la suite. Quedó pendiente la entrega a un receptor externo real.
 
+Una segunda comprobación aislada reprodujo el `403` al editar una columna con el Bearer de Hermes. El ciclo por MCP pasó con credenciales temporales. Se verificó despacho, reclamo, heartbeat, entrega, rechazo, reentrega, aprobación y desbloqueo de una tarea dependiente. Para comprobar la reasignación, se simuló un heartbeat de hace 16 minutos en la base temporal. El nuevo worker reclamó la tarea y completó el ciclo hasta la aprobación.
+
 ## Despliegue protegido en kk.okehc.com
 
-El tablero publicado está en [kk.okehc.com](https://kk.okehc.com/). El túnel existente `IIQ-tunnel` de `bibi-cloudflared` apunta a `http://agent-kanban:7331` por la red Docker externa `bibi_edge`. El override local `docker-compose.cloudflare.yml` conserva el alias `agent-kanban` y publica el puerto 7331 únicamente en la IP privada de Windows `192.168.100.61`. PostgreSQL 17 permanece en la red interna del proyecto Compose.
+El tablero publicado está en [kk.okehc.com](https://kk.okehc.com/). El túnel existente `IIQ-tunnel` de `bibi-cloudflared` apunta a `http://agent-kanban:7331` por la red Docker externa `bibi_edge`. El override local `docker-compose.cloudflare.yml` conserva el alias `agent-kanban` y liga el puerto 7331 a `127.0.0.1` para acceso desde Windows y a `192.168.100.61` para la LAN. PostgreSQL 17 permanece en la red interna del proyecto Compose.
 
 | Origen | Base REST | MCP Streamable HTTP | Credenciales |
 | --- | --- | --- | --- |
@@ -116,6 +120,7 @@ services:
     image: postgres:17-alpine
   app:
     ports: !override
+      - "127.0.0.1:7331:7331"
       - "192.168.100.61:7331:7331"
     environment:
       MCP_ALLOWED_HOSTS: '["127.0.0.1:*","localhost:*","[::1]:*","192.168.100.61:7331","agent-kanban:7331"]'
