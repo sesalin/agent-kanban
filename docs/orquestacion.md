@@ -1,6 +1,6 @@
 # Agent Kanban · acceso y orquestación
 
-Para configurar el orquestador en Windows, consulta la [guía MCP para Hermes](hermes-mcp.md).
+Para configurar a Bacha por REST o MCP, consulta la [guía del orquestador](kanban-operation/orquestador.md).
 
 ## Acceso local
 
@@ -9,13 +9,13 @@ En un entorno local con el puerto publicado en loopback, abre el tablero en [loc
 ### Alta de agentes
 
 1. Crea el proyecto como usuario del tablero con `POST /api/projects`, usando la cookie de la sesión de usuario y un cuerpo como `{"name":"Mi proyecto"}`. Anota el `id` numérico. También puedes consultar IDs con `GET /api/projects` desde la sesión de usuario.
-2. En **Admin → Tokens**, crea un token para `hermes` y uno distinto para cada worker, por ejemplo `codex`. Guarda el valor de cada token al crearlo.
+2. En **Admin → Tokens**, crea un token para `bacha` y uno distinto para cada worker, por ejemplo `codex`. Guarda el valor de cada token al crearlo.
 3. Como operador de la base de datos, concede los permisos por proyecto. Cambia `42` por el ID real y usa los mismos nombres de agente registrados en los tokens.
 
 ```bash
 docker exec -i agent-kanban-postgres-1 psql -U kanban -d kanban -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO agent_projects (agent_name, project_id, role, can_read, can_claim)
-VALUES ('hermes', 42, 'orchestrator', true, false),
+VALUES ('bacha', 42, 'orchestrator', true, false),
        ('codex', 42, 'worker', true, true)
 ON CONFLICT (agent_name, project_id) DO UPDATE
 SET role = EXCLUDED.role, can_read = EXCLUDED.can_read, can_claim = EXCLUDED.can_claim;
@@ -33,7 +33,7 @@ Ambos roles se conectan a `http://localhost:7331/mcp/`. Envía `Authorization: B
   "mcpServers": {
     "kanban-orchestrator": {
       "url": "http://localhost:7331/mcp/",
-      "headers": {"Authorization": "Bearer <TOKEN_HERMES>"}
+      "headers": {"Authorization": "Bearer <TOKEN_BACHA>"}
     },
     "kanban-worker": {
       "url": "http://localhost:7331/mcp/",
@@ -64,7 +64,7 @@ La base es `http://localhost:7331`. Usa `Authorization: Bearer <token-del-rol>` 
 
 ```bash
 curl -fsS http://localhost:7331/api/tasks/dispatch \
-  -H "Authorization: Bearer ${TOKEN_HERMES}" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer ${TOKEN_BACHA}" -H 'Content-Type: application/json' \
   --data '{"project_id":42,"title":"Preparar entrega","assigned_to":"codex"}'
 
 curl -fsS 'http://localhost:7331/api/tasks/available?project_id=42' \
@@ -148,7 +148,7 @@ docker compose -p agent-kanban \
 
 Cloudflare Access protege el hostname completo y `cloudflared` valida la aplicación de Access antes de reenviar al origen. La política humana permite el correo del administrador, con PIN por correo y MFA TOTP. La política de máquinas usa `Service Auth` y autoriza siete Service Tokens seleccionados explícitamente. El autenticador se registra en [el portal de Cloudflare Access](https://nexdom.cloudflareaccess.com/AddMfaDevice). Después se usa la cuenta de administrador de Kanban existente.
 
-El proyecto inicial `Kanban` tiene ID `1`. `hermes` es el orquestador. `codex`, `gemini`, `quoder`, `dot`, `brio` y `bacha` son workers. Sus credenciales están en `~/.config/agent-kanban/kk-agents.env`, con permisos `0600`. Asigna a cada cliente únicamente sus variables. Los siete Service Tokens de Cloudflare se crearon con vigencia de 90 días y vencen el 12 de febrero de 2027.
+El proyecto inicial `Kanban` tiene ID `1`. `bacha` es el orquestador. `codex`, `gemini`, `quoder`, `dot` y `brio` son workers. Sus credenciales están en `~/.config/agent-kanban/kk-agents.env`, con permisos `0600`. Asigna a cada cliente únicamente sus variables. Los seis Service Tokens activos de Cloudflare se crearon con vigencia de 90 días y vencen el 12 de febrero de 2027.
 
 | Cabecera requerida para MCP y REST | Variable del agente |
 | --- | --- |
@@ -156,4 +156,4 @@ El proyecto inicial `Kanban` tiene ID `1`. `hermes` es el orquestador. `codex`, 
 | `CF-Access-Client-Secret` | `<AGENTE>_CF_ACCESS_CLIENT_SECRET` |
 | `Authorization: Bearer …` | `<AGENTE>_KANBAN_TOKEN` |
 
-Usa `KANBAN_MCP_URL` para Streamable HTTP o `KANBAN_URL` como base REST. Se verificaron las siete identidades por REST y MCP. Hermes tiene permiso de despacho y Codex recibe un rechazo al intentar despachar. Cloudflare bloquea el acceso anónimo por HTTPS. La lista de tareas exige ambas capas de credenciales por el subdominio. El subdominio no respondió en el puerto 7331 durante la comprobación. Las rutas LAN se validaron desde Windows por la IP privada. Quedan pendientes el acceso desde `192.168.100.200` y el inicio de sesión humano con el autenticador del titular.
+Usa `KANBAN_MCP_URL` para Streamable HTTP o `KANBAN_URL` como base REST. Bacha tiene el rol de orquestador. Consulta la [tabla de variables por agente](kanban-operation/agentes.md#qué-pasar-a-cada-agente). Cloudflare bloquea el acceso anónimo por HTTPS. La lista de tareas exige ambas capas de credenciales por el subdominio. El subdominio no respondió en el puerto 7331 durante la comprobación. Las rutas LAN se validaron desde Windows por la IP privada. Quedan pendientes el acceso desde `192.168.100.200` y el inicio de sesión humano con el autenticador del titular.

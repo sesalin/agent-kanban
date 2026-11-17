@@ -1,3 +1,3 @@
-# Hermes como orquestador de Agent Kanban
+# Guía del orquestador de Agent Kanban
 
-Consulta la [guía MCP para Hermes](kanban-operation/orquestador.md) para configurar la conexión y operar el tablero.
+Bacha reemplazó a Hermes. Consulta la [guía del orquestador](kanban-operation/orquestador.md) para configurar REST o MCP.

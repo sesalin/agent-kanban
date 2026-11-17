@@ -100,8 +100,7 @@ ak logs --tail 40 app
 ```bash
 ak exec -T postgres psql -U kanban -d kanban -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO agent_projects (agent_name, project_id, role, can_read, can_claim)
-VALUES ('hermes', 1, 'orchestrator', true, false),
-       ('bacha', 1, 'worker', true, true),
+VALUES ('bacha', 1, 'orchestrator', true, false),
        ('brio', 1, 'worker', true, true),
        ('codex', 1, 'worker', true, true),
        ('dot', 1, 'worker', true, true),
@@ -127,7 +126,7 @@ docker run -d --name kanban-cloudflared --restart unless-stopped --network bibi_
 - Desde Windows, `curl.exe -fsS http://localhost:7331/api/setup-status` debe responder. `needs_setup: false` indica que ya existe un usuario. Entra al tablero y revisa **Admin → Tokens**.
 - Ejecuta `ak exec -T postgres psql -U kanban -d kanban -c "SELECT version_num FROM alembic_version;"` y comprueba la revisión esperada. `ak port app 7331` debe mostrar sólo las dos IP configuradas.
 - Desde un agente autorizado, consulta las tareas por MCP con su propio Bearer. Para Internet usa también las dos cabeceras de Cloudflare. Sin credenciales, el dominio HTTPS debe llevar a Access o denegar el acceso.
-- En una instalación de prueba, despacha una tarea, reclámala como worker, entrégala y apruébala con Hermes. El tablero debe terminar en `done`. El flujo de dependencias y la reasignación tras inactividad ya se verificaron en una instancia temporal.
+- En una instalación de prueba, despacha una tarea, reclámala como worker, entrégala y apruébala con Bacha. El tablero debe terminar en `done`. El flujo de dependencias y la reasignación tras inactividad ya se verificaron en una instancia temporal.
 
 ## Pendientes conocidos
 

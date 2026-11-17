@@ -4,6 +4,8 @@ Un worker toma tickets disponibles en los proyectos autorizados, informa activid
 
 ## Conectar el cliente
 
+Consulta [qué variables entregar a cada agente](agentes.md#qué-pasar-a-cada-agente).
+
 | Dónde corre el worker | URL Streamable HTTP | Cabeceras |
 | --- | --- | --- |
 | En el mismo Windows | `http://127.0.0.1:7331/mcp/` | `Authorization: Bearer <token-kanban>` |
@@ -41,13 +43,13 @@ El operador encuentra los valores en `~/.config/agent-kanban/kk-agents.env` en W
 1. Elige una tarea `ready` que esté abierta o reservada a tu nombre. Confirma que `claim_task` devolvió `ok: true` y `in_progress` antes de empezar. Si otro worker ganó el reclamo, vuelve a listar.
 2. Ejecuta el trabajo en el repositorio indicado por el ticket. Mientras siga activo, informa avances con intervalos menores de 15 minutos. Si el ticket fue reasignado, el antiguo titular debe detener su trabajo sobre ese ticket.
 3. Si necesitas señalar un bloqueo en el tablero, la herramienta `post_progress` del titular acepta `kind: "status_change"` con un `status` que indique `to: "blocked"`. Incluye el motivo y qué necesitas para continuar. Este bloqueo se reporta aparte de las dependencias automáticas entre tickets.
-4. Adjunta resultados accesibles para el orquestador. Incluye el enlace del PR en `git_pr_url` o en un comentario para que Hermes pueda verlo por MCP. Indica qué se verificó, qué falló y qué queda pendiente. Las rutas locales en el feed pueden ser inaccesibles para otros hosts.
-5. Entrega con `submit_for_review` y confirma `review`. Hermes aprueba a `done` o devuelve con feedback. Si la tarea vuelve a `in_progress` a tu nombre, lee los comentarios, corrige y vuelve a entregar.
+4. Adjunta resultados accesibles para el orquestador. Incluye el enlace del PR en `git_pr_url` o en un comentario para que Bacha pueda verlo por MCP. Indica qué se verificó, qué falló y qué queda pendiente. Las rutas locales en el feed pueden ser inaccesibles para otros hosts.
+5. Entrega con `submit_for_review` y confirma `review`. Bacha aprueba a `done` o devuelve con feedback. Si la tarea vuelve a `in_progress` a tu nombre, lee los comentarios, corrige y vuelve a entregar.
 
 Usa el ID real del ticket. Si una herramienta pide `agent`, pasa el nombre exacto del Bearer. La edición libre de columnas requiere una sesión humana. El flujo de un worker usa reclamo, progreso y entrega por MCP.
 
 ## Instrucción para pegar en el agente
 
-> Eres un worker de Kanban con tu propia identidad. Consulta el proyecto 1 con `list_my_tasks`. Reclama el ticket antes de trabajar y confirma que quedó a tu nombre. Reporta heartbeat y avances durante la ejecución. Pide aclaraciones en los comentarios del ticket. Cuando termines, incluye el resultado, las comprobaciones y evidencia accesible, y entrega con `submit_for_review`. Si Hermes devuelve la entrega, lee su feedback y vuelve a presentar el trabajo. Si pierdes el reclamo, detén el trabajo sobre ese ticket.
+> Eres un worker de Kanban con tu propia identidad. Consulta el proyecto 1 con `list_my_tasks`. Reclama el ticket antes de trabajar y confirma que quedó a tu nombre. Reporta heartbeat y avances durante la ejecución. Pide aclaraciones en los comentarios del ticket. Cuando termines, incluye el resultado, las comprobaciones y evidencia accesible, y entrega con `submit_for_review`. Si Bacha devuelve la entrega, lee su feedback y vuelve a presentar el trabajo. Si pierdes el reclamo, detén el trabajo sobre ese ticket.
 
 [Guía del orquestador](orquestador.md) · [Ficha técnica](ficha-tecnica.md)
