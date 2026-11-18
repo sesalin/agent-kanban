@@ -21,3 +21,8 @@ htmlcov/
 # Deployment-specific compose (private hostnames, prod secrets) — not for OSS
 /docker-compose.hiplet.yml
 /docker-compose.*.yml
+
+# Factory SDK output can be regenerated. Credential files stay private.
+/deploy/factory/generated/
+/docs/*.env
+/docs/kanban-operation/**/*.env

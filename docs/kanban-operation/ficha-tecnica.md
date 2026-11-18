@@ -1,5 +1,8 @@
 # Agent Kanban · ficha técnica y recuperación
 
+La fábrica secuencial vigente, con horarios y prompts de Brio, Bacha y Codex, se documenta en [sequential/README.md](sequential/README.md). Sus entregas se concilian por cron, sin callbacks de los workers.
+
+
 Verificado el 16 de noviembre de 2026.
 
 | Dato | Valor |
@@ -12,7 +15,7 @@ Verificado el 16 de noviembre de 2026.
 | Base de datos | PostgreSQL 17.12 en la instancia verificada, volumen Docker `agent-kanban_ak_pgdata` |
 | Compose | Proyecto `agent-kanban`, servicios `app` y `postgres` |
 | Tablero desde Windows | [localhost:7331](http://localhost:7331/) |
-| LAN | `http://192.168.100.61:7331` para REST y `http://192.168.100.61:7331/mcp/` para MCP. Usa el Bearer de Kanban. |
+| LAN | `http://192.168.100.91:7331` para REST y `http://192.168.100.91:7331/mcp/` para MCP. Usa el Bearer de Kanban. |
 | Internet | [kk.okehc.com](https://kk.okehc.com/) para web y REST, `https://kk.okehc.com/mcp/` para MCP. Cloudflare Access protege el hostname. |
 | Túnel | `IIQ-tunnel`, conector `bibi-cloudflared`, red externa `bibi_edge`, origen `http://agent-kanban:7331` |
 | Proyecto inicial | `Kanban`, ID `1`. Consulta el [inventario de agentes](agentes.md). |
@@ -48,10 +51,10 @@ services:
   app:
     ports: !override
       - "127.0.0.1:7331:7331"
-      - "192.168.100.61:7331:7331"
+      - "192.168.100.91:7331:7331"
     environment:
-      MCP_ALLOWED_HOSTS: '["127.0.0.1:*","localhost:*","[::1]:*","192.168.100.61:7331","agent-kanban:7331"]'
-      MCP_ALLOWED_ORIGINS: '["http://127.0.0.1:*","http://localhost:*","http://[::1]:*","http://192.168.100.61:7331"]'
+      MCP_ALLOWED_HOSTS: '["127.0.0.1:*","localhost:*","[::1]:*","192.168.100.91:7331","agent-kanban:7331"]'
+      MCP_ALLOWED_ORIGINS: '["http://127.0.0.1:*","http://localhost:*","http://[::1]:*","http://192.168.100.91:7331"]'
     networks:
       default:
       bibi_edge:

@@ -1,0 +1,271 @@
+{
+  "name": "05_Final_Delivery_To_User",
+  "nodes": [
+    {
+      "id": "3000a009-111d-4fc3-9e2a-2e7ec7f7961f",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "factory/final-close",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "c38122be-f6f5-4a5f-9e86-bb98fb8f74f5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WXW1Qq0Mn5l5wcDr",
+          "name": "openai-radar-header"
+        }
+      }
+    },
+    {
+      "id": "8d4b01ba-b32e-432c-af65-42adade3f0f9",
+      "name": "Validar entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p = $input.first().json.body ?? $input.first().json;\nif (typeof p.event_id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(p.event_id)) throw new Error('event_id inválido');\nif (typeof p.executive_summary!=='string' || !p.executive_summary.trim() || p.bundle_path!=='/mnt/c/_mcp/muse-packages/'+p.event_id+'/') throw new Error('Cierre inválido');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "e72685fb-567b-4587-af09-4e2c90b8d971",
+      "name": "Consultar pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/rpc/factory_get",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_event_id:$('Validar entrada').first().json.event_id}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "c943e792-0088-4fad-820d-65989f18fac4",
+      "name": "Comprobar cierre",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p=$input.first().json;if (!['FINAL_REVIEW','DONE'].includes(p.stage)) throw new Error('Faltan ramas por completar'); return [{json:p}];"
+      }
+    },
+    {
+      "id": "5f83d3cf-0003-4e46-b53d-ccf4f8059844",
+      "name": "Comprobar resumen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p=$input.first().json; if (!p.event_id || !(p.bytes>0 || p.specs_ready || p.file_ready || p.release_ready)) throw new Error('Falló la operación de archivos.');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "aecf5a1d-1087-430f-a9e0-1852d259c014",
+      "name": "Cerrar pipeline y radar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/rpc/factory_final_close",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_payload:$('Validar entrada').first().json}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "4a672e15-b510-4ba0-9734-cca7e79de8c1",
+      "name": "Entregar al usuario por Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "CONFIGURAR_CHAT_CHEKO",
+        "text": "={{ $json.title + '\\n\\n' + $json.final_summary + '\\n\\nMVP: ' + ($json.mvp_zip_path ?? 'SKIPPED') + '\\nProspectos: ' + ($json.prospection_zip_path ?? 'SKIPPED') + '\\nLanding: ' + ($json.landing_zip_path ?? 'SKIPPED') + '\\nCarpeta: ' + $json.final_bundle_path }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "webhookId": "5fad57ec-6d56-4ad1-8a10-968f842d57bd"
+    },
+    {
+      "id": "8d311496-88f9-4885-a171-77fb31f504a7",
+      "name": "Guardar resumen ejecutivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kanban-api.okehc.com/api/factory/files/release",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Validar entrada').first().json) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Validar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar entrada": {
+      "main": [
+        [
+          {
+            "node": "Consultar pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar pipeline": {
+      "main": [
+        [
+          {
+            "node": "Comprobar cierre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar resumen": {
+      "main": [
+        [
+          {
+            "node": "Cerrar pipeline y radar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cerrar pipeline y radar": {
+      "main": [
+        [
+          {
+            "node": "Entregar al usuario por Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar cierre": {
+      "main": [
+        [
+          {
+            "node": "Guardar resumen ejecutivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar resumen ejecutivo": {
+      "main": [
+        [
+          {
+            "node": "Comprobar resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "active": false,
+  "nodeGroups": [
+    {
+      "id": "b7588c27-bcad-45d4-9a7a-4039107e25e9",
+      "name": "Cerrar oportunidad",
+      "nodeNames": [
+        "Validar entrada",
+        "Consultar pipeline",
+        "Comprobar cierre",
+        "Guardar resumen ejecutivo",
+        "Comprobar resumen",
+        "Cerrar pipeline y radar"
+      ],
+      "description": "Cerrar oportunidad dentro del ciclo de oportunidad."
+    }
+  ]
+}

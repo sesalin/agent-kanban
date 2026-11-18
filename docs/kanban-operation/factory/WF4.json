@@ -1,0 +1,458 @@
+{
+  "name": "04_Branch_Collector_And_Join",
+  "nodes": [
+    {
+      "id": "d689b845-965c-4b10-bac8-8267bd2e9616",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "factory/branch-done",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "955208e4-8267-4fa7-990c-235846f35ba5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WXW1Qq0Mn5l5wcDr",
+          "name": "openai-radar-header"
+        }
+      }
+    },
+    {
+      "id": "9ea67f4e-0738-4468-89d1-340cfec4aee9",
+      "name": "Validar entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p = $input.first().json.body ?? $input.first().json;\nif (typeof p.event_id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(p.event_id)) throw new Error('event_id inválido');\np.task_id=Number(p.task_id); if (!Number.isSafeInteger(p.task_id) || p.task_id<1 || !['mvp','prospection','landing'].includes(p.branch)) throw new Error('Rama inválida');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "64d5ac2b-27f9-40f5-93e8-1e4410f0abcb",
+      "name": "Consultar pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/rpc/factory_get",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_event_id:$('Validar entrada').first().json.event_id}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "00ad5520-eff5-4d38-b7e0-d5be04fa5c99",
+      "name": "Consultar tarjeta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://kanban-api.okehc.com/api/tasks/' + $('Validar entrada').first().json.task_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    },
+    {
+      "id": "be61f60a-cc44-4d7e-8dee-914d0cdd9784",
+      "name": "Validar entrega de rama",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const t=$input.first().json,p=$('Validar entrada').first().json,f=$('Consultar pipeline').first().json;\nconst defs={mvp:['codex','04_mvp/mvp.zip'],prospection:['nod','05_prospects/prospects.zip'],landing:['nod','06_landing/landing.zip']};\nconst [agent,path]=defs[p.branch];\nif (!f['run_'+p.branch] || String(f[p.branch+'_task_id'])!==String(p.task_id) || t.id!==p.task_id || t.project_id!==1 || t.claimed_by!==agent || !['review','done'].includes(t.status) || t.metadata_payload?.event_id!==p.event_id || p.zip_path!==p.event_id+'/'+path || !['BUILDING','FINAL_REVIEW'].includes(f.stage)) throw new Error('Entrega no corresponde a una rama activa');\nreturn [{json:t}];"
+      }
+    },
+    {
+      "id": "91989e37-4172-4230-882b-36fdd2f71c97",
+      "name": "Comprobar ZIP de rama",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p=$input.first().json; if (!p.event_id || !(p.bytes>0 || p.specs_ready || p.file_ready || p.release_ready)) throw new Error('Falló la operación de archivos.');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "3ab5dcaf-9e8d-4692-bfa7-20627283927d",
+      "name": "¿Requiere aprobación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Validar entrega de rama').first().json.status }}",
+              "rightValue": "review",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "090e74d4-44f1-4467-8fe1-e94960870765",
+      "name": "Aprobar tarjeta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://kanban-api.okehc.com/api/tasks/' + $('Validar entrada').first().json.task_id + '/review' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"verdict\":\"APPROVE\",\"feedback\":\"Entrega validada por el workflow de la fábrica.\"}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    },
+    {
+      "id": "7a3508db-9d12-45c3-8aa9-d53afa47fd9c",
+      "name": "Registrar entrega y conteo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/rpc/factory_branch_done",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_payload:$('Validar entrada').first().json}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "8e07ee1d-6c6e-4797-a749-dd3f09405230",
+      "name": "¿Todas las ramas listas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ String($json.wake_final_review) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a7504074-7daf-4847-9fb1-c9fa55897f2c",
+      "name": "Despertar Nod para cierre",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.100.86:8080/message/sendText/anyo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({number: '528145925005', text: 'WAKEUP NOD [CIERRE FINAL] | Event: '+$('Validar entrada').first().json.event_id+' | Ramas activas completas. MVP='+$('Registrar entrega y conteo').first().json.mvp_zip_path+' | Prospects='+$('Registrar entrega y conteo').first().json.prospection_zip_path+' | Landing='+$('Registrar entrega y conteo').first().json.landing_zip_path+' | Entrega el resumen por WF5 y continúa con tu siguiente tarjeta.'}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "notes": "Selecciona Evolution Factory (Simplified Custom Auth, plantilla {\"headers\":{\"apikey\":\"{{api_key}}\"}}), URL, instancia y destinatario reales.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "pRyb5MlyNAjEuDud",
+          "name": "Evolution Factory"
+        }
+      }
+    },
+    {
+      "id": "6a1b928b-b645-4f9c-a802-761f09891a53",
+      "name": "Verificar ZIP de rama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kanban-api.okehc.com/api/factory/files/verify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Validar entrada').first().json) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Validar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar entrada": {
+      "main": [
+        [
+          {
+            "node": "Consultar pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar pipeline": {
+      "main": [
+        [
+          {
+            "node": "Consultar tarjeta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar tarjeta": {
+      "main": [
+        [
+          {
+            "node": "Validar entrega de rama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar ZIP de rama": {
+      "main": [
+        [
+          {
+            "node": "¿Requiere aprobación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Requiere aprobación?": {
+      "main": [
+        [
+          {
+            "node": "Aprobar tarjeta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar entrega y conteo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aprobar tarjeta": {
+      "main": [
+        [
+          {
+            "node": "Registrar entrega y conteo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar entrega y conteo": {
+      "main": [
+        [
+          {
+            "node": "¿Todas las ramas listas?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Todas las ramas listas?": {
+      "main": [
+        [
+          {
+            "node": "Despertar Nod para cierre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar entrega de rama": {
+      "main": [
+        [
+          {
+            "node": "Verificar ZIP de rama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar ZIP de rama": {
+      "main": [
+        [
+          {
+            "node": "Comprobar ZIP de rama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "active": false,
+  "nodeGroups": [
+    {
+      "id": "4b3e20c3-736e-4e34-988d-06fb5aadc9e4",
+      "name": "Validar entregable",
+      "nodeNames": [
+        "Validar entrada",
+        "Consultar pipeline",
+        "Consultar tarjeta",
+        "Validar entrega de rama",
+        "Verificar ZIP de rama",
+        "Comprobar ZIP de rama"
+      ],
+      "description": "Validar entregable dentro del ciclo de oportunidad."
+    },
+    {
+      "id": "4c625d78-1b8a-4d1f-9eb9-19ef788026f6",
+      "name": "Cerrar rama",
+      "nodeNames": [
+        "¿Requiere aprobación?",
+        "Aprobar tarjeta",
+        "Registrar entrega y conteo"
+      ],
+      "description": "Cerrar rama dentro del ciclo de oportunidad."
+    }
+  ]
+}

@@ -1,10 +1,17 @@
 # Bacha como orquestador de Agent Kanban
 
+La fábrica secuencial vigente, con horarios y prompts de Brio, Bacha y Codex, se documenta en [sequential/README.md](sequential/README.md). Sus entregas se concilian por cron, sin callbacks de los workers.
+
+
+Para la fábrica de oportunidades aplica el [contrato de anyo](factory/README.md) y el [prompt actual de Bacha](factory/bacha.md). n8n crea y cierra las tarjetas de la fábrica. Nod evalúa, construye su landing y prepara el cierre final. Usa su [prompt de fábrica](factory/nod.md). Las capacidades técnicas de orquestación descritas abajo siguen disponibles en su identidad.
+
 Bacha coordina el proyecto **Kanban** (`project_id: 1`). Tiene permiso para despachar, revisar y reasignar. Los workers son `codex`, `gemini`, `quoder`, `dot` y `brio`.
 
 ## 1. Conexión por REST o MCP
 
-**REST funciona aunque el cliente carezca de MCP.** Para REST usa `KANBAN_LAN_URL` desde la LAN o `KANBAN_URL` por HTTPS público. En ambos casos envía `Authorization: Bearer <BACHA_KANBAN_TOKEN>`. Por HTTPS público también envía `CF-Access-Client-Id` y `CF-Access-Client-Secret` con los valores `BACHA_CF_ACCESS_CLIENT_ID` y `BACHA_CF_ACCESS_CLIENT_SECRET`.
+Para orquestar por REST desde el canal público de Bacha, usa `https://kanban-api.okehc.com` y envía `Authorization: Bearer <BACHA_KANBAN_TOKEN>`. El Worker valida ese Bearer y agrega las cabeceras de Cloudflare Access antes de consultar Kanban. Para verificar la conexión, usa `GET /api/tasks?project_id=1&status=review` y espera `200` con JSON. Una lista vacía es válida.
+
+Desde la LAN también puedes usar `KANBAN_LAN_URL` con el Bearer. Para entrar directamente por `KANBAN_URL` (`https://kk.okehc.com`), agrega `CF-Access-Client-Id` y `CF-Access-Client-Secret` con los valores `BACHA_CF_ACCESS_CLIENT_ID` y `BACHA_CF_ACCESS_CLIENT_SECRET`.
 
 | Acción | REST | Cuerpo o parámetros |
 | --- | --- | --- |
@@ -22,13 +29,13 @@ curl -fsS -H "Authorization: Bearer ${BACHA_KANBAN_TOKEN}" \
   "${KANBAN_LAN_URL}/api/tasks?project_id=${KANBAN_PROJECT_ID}&status=review"
 ```
 
-Si el cliente de Bacha admite **MCP Streamable HTTP**, usa `KANBAN_LAN_MCP_URL` o `KANBAN_MCP_URL` con las mismas cabeceras según la red. Ejemplo LAN para clientes con configuración tipo `mcpServers`:
+Si el cliente de Bacha admite **MCP Streamable HTTP**, usa `https://kanban-api.okehc.com/mcp/` con el mismo Bearer. El intermediario valida el Bearer antes de reenviar la solicitud a Kanban. Ejemplo para clientes con configuración tipo `mcpServers`:
 
 ```json
 {
   "mcpServers": {
     "kanban": {
-      "url": "http://192.168.100.61:7331/mcp/",
+      "url": "https://kanban-api.okehc.com/mcp/",
       "headers": {
         "Authorization": "Bearer <BACHA_KANBAN_TOKEN>"
       }
@@ -37,7 +44,7 @@ Si el cliente de Bacha admite **MCP Streamable HTTP**, usa `KANBAN_LAN_MCP_URL` 
 }
 ```
 
-Configura el valor con el mecanismo de secretos del cliente. Confirma el acceso con `list_tasks({"project_id":1})`. Consulta la [tabla de variables](agentes.md#qué-pasar-a-cada-agente).
+Configura el valor con el mecanismo de secretos del cliente. Confirma que MCP inicializa, lista herramientas y ejecuta `list_tasks({"project_id":1,"status":"review"})`. Una lista vacía es válida. Desde la LAN también puedes usar `KANBAN_LAN_MCP_URL`. El endpoint original `KANBAN_MCP_URL` en `kk.okehc.com` exige las dos cabeceras de Access además del Bearer. Consulta la [tabla de variables](agentes.md#qué-pasar-a-cada-agente).
 
 ## 2. Coordinar tickets
 
@@ -72,12 +79,14 @@ Para detectar tareas detenidas, consulta `status: "in_progress"` y revisa `last_
 
 ## 3. Instrucción para pegar en Bacha
 
-> Eres el orquestador del proyecto Kanban con ID 1. Usa el servidor MCP `kanban`. Cuando te pida planificar trabajo, revisa primero los tickets existentes y despacha tareas con un resultado, criterios de aceptación y evidencia esperada. Usa los IDs que devuelva Kanban para registrar dependencias. Deja que los workers reclamen y ejecuten sus tareas. Cuando te pida revisar, lista los tickets en `review`, comprueba la evidencia y aprueba o devuelve cada entrega con feedback concreto. Si falta evidencia, pídela en el ticket. Si una tarea en `in_progress` se queda sin heartbeat durante al menos 15 minutos y debe continuar, reasígnala a un worker habilitado. Reporta los IDs, el estado devuelto y los bloqueos. Si una llamada de despacho falla de forma ambigua, consulta primero si el ticket se creó antes de volver a enviarla.
+> Eres el orquestador del proyecto Kanban con ID 1. Usa REST en `https://kanban-api.okehc.com` con tu Bearer de Kanban. Cuando te pida planificar trabajo, revisa primero los tickets existentes y despacha tareas con un resultado, criterios de aceptación y evidencia esperada. Usa los IDs que devuelva Kanban para registrar dependencias. Deja que los workers reclamen y ejecuten sus tareas. Cuando te pida revisar, lista los tickets en `review`, comprueba la evidencia y aprueba o devuelve cada entrega con feedback concreto. Si falta evidencia, pídela en el ticket. Si una tarea en `in_progress` se queda sin heartbeat durante al menos 15 minutos y debe continuar, reasígnala a un worker habilitado. Reporta los IDs, el estado devuelto y los bloqueos. Si una llamada de despacho falla de forma ambigua, consulta primero si el ticket se creó antes de volver a enviarla.
 
 ## Comprobación rápida
 
 - Si el servidor responde `401`, comprueba que `BACHA_KANBAN_TOKEN` esté en el proceso de Bacha y que la cabecera empiece con `Bearer `.
 - Si la URL pública devuelve una página o redirección de Cloudflare, revisa las dos cabeceras de Access. En la LAN se usa el Bearer de Kanban.
 - Ante un error de conexión en LAN, comprueba la IP de Windows. Para MCP, esa IP y el puerto deben estar en los hosts permitidos.
+
+El Worker `kanban-bacha-rest` se despliega con la configuración de `deploy/bacha-rest/wrangler.jsonc`. Si se rotan las credenciales de Bacha, actualiza también los secretos del Worker. Para redesplegar, prepara un JSON privado fuera del repositorio con `BACHA_KANBAN_TOKEN`, `BACHA_CF_ACCESS_CLIENT_ID` y `BACHA_CF_ACCESS_CLIENT_SECRET` y pásalo con `wrangler deploy --config deploy/bacha-rest/wrangler.jsonc --secrets-file /ruta/privada/secretos.json`. [Secretos de Cloudflare Workers](https://developers.cloudflare.com/workers/configuration/secrets/)
 
 [Guía de workers](workers.md) · [Inventario y variables](agentes.md)

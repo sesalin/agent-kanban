@@ -1,0 +1,88 @@
+{
+  "name": "Conexión Evolution - Recepción de eventos",
+  "nodes": [
+    {
+      "id": "4377563a-1dcb-4123-ab9c-f34859ae2bb5",
+      "name": "Eventos de Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "factory/evolution-events",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "b99af9dd-9dc1-4b5e-8a88-f19cfc8108e3",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WXW1Qq0Mn5l5wcDr",
+          "name": "openai-radar-header"
+        }
+      }
+    },
+    {
+      "id": "0d0674fe-5da0-42c8-abff-be04563e68be",
+      "name": "Confirmar recepción",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "fc10eadf-fcfa-4f48-8765-c94c80eba235",
+      "name": "Reconocer avisos WAKEUP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nconst data = body.data ?? {};\nconst candidate = body.chatInput ?? data.message?.conversation ?? data.message?.extendedTextMessage?.text ?? data.message?.text ?? data.text ?? '';\nconst text = typeof candidate === 'string' ? candidate : '';\nreturn [{ json: {\n  received: true,\n  wakeup: text.startsWith('WAKEUP'),\n  instance: body.instance ?? body.instanceName ?? null,\n  message_id: data.key?.id ?? body.keyId ?? null,\n  from_me: data.key?.fromMe ?? body.fromMe ?? null\n} }];"
+      }
+    }
+  ],
+  "connections": {
+    "Eventos de Evolution": {
+      "main": [
+        [
+          {
+            "node": "Reconocer avisos WAKEUP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconocer avisos WAKEUP": {
+      "main": [
+        [
+          {
+            "node": "Confirmar recepción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "active": false
+}

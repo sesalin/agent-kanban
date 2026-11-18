@@ -1,0 +1,69 @@
+{
+  "name": "Fábrica secuencial - Registrar fallos",
+  "nodes": [
+    {
+      "id": "ddc1a55c-cae8-48e4-b36c-55a0ce2f9397",
+      "name": "Fallo de fábrica",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "f278755d-2629-4ccf-9197-d1166ae4a5c4",
+      "name": "Registrar fallo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kanban-api.okehc.com/api/factory/error",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({workflow_id:String($json.workflow?.id ?? 'unknown'),execution_id:String($json.execution?.id ?? 'activation')}) }}",
+        "options": {
+          "timeout": 240000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Fallo de fábrica": {
+      "main": [
+        [
+          {
+            "node": "Registrar fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timezone": "America/Mexico_City",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionTimeout": 120
+  },
+  "active": false
+}

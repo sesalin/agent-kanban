@@ -1,0 +1,13 @@
+[Unit]
+Description=Kanban sequential MVP worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/agent-kanban/codex-factory.env
+Environment=PATH=/home/cheko/.local/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=/home/cheko/_proyects/agent-kanban
+ExecStart=/usr/bin/python3 /home/cheko/_proyects/agent-kanban/deploy/factory/run-codex.py
+TimeoutStartSec=6h
+UMask=0077

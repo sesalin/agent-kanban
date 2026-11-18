@@ -25,6 +25,24 @@ async def create_project(session, name):
 
 
 @pytest.mark.asyncio
+async def test_factory_dispatch_retry_reuses_task(session):
+    project = await create_project(session, "factory")
+    session.add_all([
+        AgentProject(agent_name="n8n-radares", project_id=project.id, role="orchestrator"),
+        AgentProject(agent_name="brio", project_id=project.id),
+    ])
+    await session.commit()
+    payload = DispatchTask(project_id=project.id, title="Research", assigned_to="brio",
+                           metadata={"factory_dispatch_key": "event-1:research"})
+    first = await dispatch_task(session, "n8n-radares", payload)
+    retried = await dispatch_task(session, "n8n-radares", payload)
+    assert first.id == retried.id
+    changed = payload.model_copy(update={"assigned_to": "codex"})
+    with pytest.raises(ValueError, match="already used"):
+        await dispatch_task(session, "n8n-radares", changed)
+
+
+@pytest.mark.asyncio
 async def test_cross_project_isolation(session, authed_client):
     """El token de domify sólo puede listar y reclamar tareas de domify."""
     domify = await create_project(session, "domify")

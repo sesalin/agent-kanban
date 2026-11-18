@@ -19,6 +19,7 @@ from agent_kanban.permissions import ProjectAccessDenied, TaskNotFound
 from agent_kanban.ratelimit import limiter
 from agent_kanban.routes import artifacts, comments, orchestration, progress, projects, tasks, ws
 from agent_kanban.routes import auth as auth_routes
+from agent_kanban.routes import factory, task_packages
 
 
 class _MCPTrailingSlashMiddleware(BaseHTTPMiddleware):
@@ -143,6 +144,8 @@ def create_app() -> FastAPI:
         return JSONResponse({"detail": str(error)}, status_code=404)
 
     app.include_router(orchestration.router)
+    app.include_router(task_packages.router)
+    app.include_router(factory.router)
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(progress.router)

@@ -1,5 +1,8 @@
 # Workers · conexión y operación por MCP
 
+La fábrica secuencial vigente, con horarios y prompts de Brio, Bacha y Codex, se documenta en [sequential/README.md](sequential/README.md). Sus entregas se concilian por cron, sin callbacks de los workers.
+
+
 Un worker toma tickets disponibles en los proyectos autorizados, informa actividad y entrega evidencia para que el orquestador revise. En esta instalación el proyecto es **Kanban**, ID `1`. Usa únicamente el Bearer emitido para tu identidad. Consulta los nombres en el [inventario](agentes.md).
 
 ## Conectar el cliente
@@ -9,7 +12,7 @@ Consulta [qué variables entregar a cada agente](agentes.md#qué-pasar-a-cada-ag
 | Dónde corre el worker | URL Streamable HTTP | Cabeceras |
 | --- | --- | --- |
 | En el mismo Windows | `http://127.0.0.1:7331/mcp/` | `Authorization: Bearer <token-kanban>` |
-| En otro equipo de la LAN | `http://192.168.100.61:7331/mcp/` | `Authorization: Bearer <token-kanban>` |
+| En otro equipo de la LAN | `http://192.168.100.91:7331/mcp/` | `Authorization: Bearer <token-kanban>` |
 | Fuera de la LAN | `https://kk.okehc.com/mcp/` | Bearer de Kanban, `CF-Access-Client-Id` y `CF-Access-Client-Secret` del worker |
 
 Ejemplo de configuración para clientes que aceptan `mcpServers`, URL y cabeceras. Usa el mecanismo de secretos de tu cliente para resolver los valores de ejemplo.
@@ -18,7 +21,7 @@ Ejemplo de configuración para clientes que aceptan `mcpServers`, URL y cabecera
 {
   "mcpServers": {
     "kanban": {
-      "url": "http://192.168.100.61:7331/mcp/",
+      "url": "http://192.168.100.91:7331/mcp/",
       "headers": {
         "Authorization": "Bearer <TOKEN_KANBAN_DE_ESTE_WORKER>"
       }
@@ -48,8 +51,23 @@ El operador encuentra los valores en `~/.config/agent-kanban/kk-agents.env` en W
 
 Usa el ID real del ticket. Si una herramienta pide `agent`, pasa el nombre exacto del Bearer. La edición libre de columnas requiere una sesión humana. El flujo de un worker usa reclamo, progreso y entrega por MCP.
 
+## Piloto ZIP de Brio
+
+El intermediario acepta el Bearer propio de Brio en `https://kanban-api.okehc.com` para REST y en `https://kanban-api.okehc.com/mcp/` para MCP. Las cabeceras de Cloudflare se agregan del lado del intermediario. Las variables para el piloto están en el archivo local privado `~/.config/agent-kanban/brio-piloto.env`.
+
+Bacha despacha la tarjeta con `metadata.muse_zip`, que contiene `path` relativo a la raíz de paquetes, `input_file` y `output_file`. El POST de despacho recibe `metadata` y la respuesta lo devuelve como `metadata_payload`. Verifica que aparezca `metadata_payload.muse_zip` antes de avisar al worker. La instalación sólo monta la carpeta de la prueba con datos sintéticos. La tarjeta vigente del piloto es la #8. Para operarla desde el canal de Brio, usa REST y un único Bearer:
+
+| Paso | Operación | Resultado esperado |
+| --- | --- | --- |
+| Reclamar la tarjeta | `POST /api/tasks/8/claim` | `200`, `in_progress` |
+| Descargar el ZIP de entrada | `GET /api/tasks/8/package/input` | `200` con `application/zip` |
+| Subir hallazgos | `PUT /api/tasks/8/package/result` con `Content-Type: application/zip` y el ZIP binario como cuerpo | `201`, con nombre, tamaño y ruta del resultado |
+| Entregar a revisión | `POST /api/tasks/8/submit` con JSON, `summary_of_work` y la URL de resultado en `artifacts` | `200`, `review` |
+
+La carga admite hasta 10 MiB y la tarjeta debe seguir reclamada por Brio y en progreso. Si ya hay un ZIP de salida, la respuesta es `409`. Bacha puede descargar la entrega con su Bearer mediante `GET /api/tasks/8/package/result`.
+
 ## Instrucción para pegar en el agente
 
-> Eres un worker de Kanban con tu propia identidad. Consulta el proyecto 1 con `list_my_tasks`. Reclama el ticket antes de trabajar y confirma que quedó a tu nombre. Reporta heartbeat y avances durante la ejecución. Pide aclaraciones en los comentarios del ticket. Cuando termines, incluye el resultado, las comprobaciones y evidencia accesible, y entrega con `submit_for_review`. Si Bacha devuelve la entrega, lee su feedback y vuelve a presentar el trabajo. Si pierdes el reclamo, detén el trabajo sobre ese ticket.
+> Eres un worker de Kanban con tu propia identidad. Consulta el proyecto 1 con `list_my_tasks`. Selecciona una tarjeta cuyo `assigned_to` coincida con tu identidad. Reclama el ticket antes de trabajar y confirma que quedó a tu nombre. Reporta heartbeat y avances durante la ejecución. Pide aclaraciones en los comentarios del ticket. Cuando termines, incluye el resultado, las comprobaciones y evidencia accesible, y entrega con `submit_for_review`. Completa la notificación del workflow correspondiente y vuelve a consultar `list_my_tasks({"project_id":1})` para reclamar la siguiente tarjeta a tu nombre. Continúa hasta que esa cola quede vacía y entonces espera un nuevo aviso. Si Bacha devuelve la entrega, lee su feedback y vuelve a presentar el trabajo. Si pierdes el reclamo, detén el trabajo sobre ese ticket.
 
 [Guía del orquestador](orquestador.md) · [Ficha técnica](ficha-tecnica.md)

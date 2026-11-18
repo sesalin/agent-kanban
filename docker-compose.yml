@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16
+    restart: always
     environment:
       POSTGRES_USER: kanban
       POSTGRES_PASSWORD: kanban
@@ -19,6 +20,7 @@ services:
 
   app:
     build: .
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy

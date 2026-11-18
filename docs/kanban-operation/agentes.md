@@ -1,21 +1,26 @@
 # Inventario de agentes de Kanban
 
-Permisos verificados en PostgreSQL el 17 de noviembre de 2026. Las seis identidades tienen un token emitido en Kanban. La asignación de proyecto permite operar sobre el proyecto indicado. Los tickets individuales se reservan o reclaman por separado.
+Las identidades de esta tabla tienen un token emitido en Kanban. La asignación de proyecto permite operar sobre el proyecto indicado. Los tickets individuales se reservan o reclaman por separado.
 
 | Agente | Proyecto | ID | Rol en Kanban | Puede leer | Puede reclamar |
 | --- | --- | --- | --- | --- | --- |
-| `bacha` | Kanban | 1 | `orchestrator` | Sí | No |
+| `bacha` | Kanban | 1 | `orchestrator` | Sí | Sí |
 | `brio` | Kanban | 1 | `worker` | Sí | Sí |
 | `codex` | Kanban | 1 | `worker` | Sí | Sí |
 | `dot` | Kanban | 1 | `worker` | Sí | Sí |
 | `gemini` | Kanban | 1 | `worker` | Sí | Sí |
+| `instinct` | Kanban | 1 | `worker` | Sí | Sí |
+| `nod` | Kanban | 1 | `orchestrator` | Sí | Sí |
+| `n8n-radares` | Kanban | 1 | `orchestrator` | Sí | No |
 | `quoder` | Kanban | 1 | `worker` | Sí | Sí |
 
 La lista indica identidades configuradas. La disponibilidad del proceso de cada agente varía con su host. Los valores de las credenciales se administran en el archivo privado descrito en la [ficha técnica](ficha-tecnica.md).
 
+El contrato de fábrica asigna a n8n la creación y el cierre de tarjetas. La fábrica secuencial usa Brio para investigación, Bacha para evaluación, prospección, landing y cierre, y Codex para MVP. Nod e Instinct quedan fuera de las nuevas asignaciones de fábrica. Su archivo privado es `~/.config/agent-kanban/nod.env`. Consulta la [operación de fábrica](factory/README.md) y los prompts por identidad. Instinct usa el archivo privado `~/.config/agent-kanban/instinct.env`. El intermediario acepta el Bearer propio de Bacha, Brio, Codex e Instinct para consultar su cola y entregar.
+
 ## Qué pasar a cada agente
 
-El archivo privado en WSL es `~/.config/agent-kanban/kk-agents.env`. Comparte únicamente las variables de la fila que corresponda y la URL del método elegido.
+El archivo privado en WSL para los agentes de la tabla de conexión es `~/.config/agent-kanban/kk-agents.env`. Comparte únicamente las variables de la fila que corresponda y la URL del método elegido.
 
 | Método y red | Variable de URL | Credenciales |
 | --- | --- | --- |
@@ -35,6 +40,14 @@ El archivo privado en WSL es `~/.config/agent-kanban/kk-agents.env`. Comparte ú
 
 `*_KANBAN_TOKEN` va en `Authorization: Bearer <valor>`. El par de Cloudflare va en `CF-Access-Client-Id` y `CF-Access-Client-Secret`. Las mismas credenciales sirven para ambos métodos. Pasa `KANBAN_PROJECT_ID=1` como parámetro de proyecto. `*_KANBAN_ROLE` es informativa y puede omitirse.
 
+## Acceso de n8n para despachar tarjetas
+
+Usa `POST https://kanban-api.okehc.com/api/tasks/dispatch` con `project_id: 1` en el JSON. Guarda `N8N_RADARES_KANBAN_TOKEN` en una credencial de n8n de tipo **Header Auth**, con nombre `Authorization` y valor `Bearer <token>`. El valor se guarda en WSL en `~/.config/agent-kanban/n8n-radares.env`.
+
+El intermediario acepta ese Bearer para despachar por REST, consultar una tarjeta por ID y registrar su revisión. Agrega las dos cabeceras de su Service Token `kanban-n8n-radares`. La respuesta al crear una tarjeta es `201` con el `id`. Kanban registra `n8n-radares` como autor. Conserva el ID en el flujo para vincularlo con el radar que originó el despacho.
+
+El Service Token vence el 16 de febrero de 2027 a las 16:04 UTC. Al renovarlo, actualiza `N8N_RADARES_CF_ACCESS_CLIENT_ID` y `N8N_RADARES_CF_ACCESS_CLIENT_SECRET` en el Worker de Cloudflare.
+
 Para actualizar este inventario sin consultar valores de credenciales:
 
 ```bash
@@ -47,3 +60,6 @@ SQL
 ```
 
 [Guía del orquestador](orquestador.md) · [Guía de workers](workers.md)
+
+
+La operación vigente y los prompts por agente están en [sequential/README.md](sequential/README.md). Los permisos registrados de identidades antiguas se conservan; no significan que reciban trabajo del coordinador nuevo.

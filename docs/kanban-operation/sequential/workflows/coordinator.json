@@ -1,0 +1,84 @@
+{
+  "name": "Fábrica secuencial - Conciliar cada 5 minutos",
+  "nodes": [
+    {
+      "id": "29d6e82f-3ccc-43af-8c78-3218226665b1",
+      "name": "Cada 5 minutos, 12:20–22:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20-59/5 12 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 */5 13-21 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 0 22 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "64f3b8a3-16bd-483e-b664-dcb6e5e25846",
+      "name": "Conciliar tarjetas y estados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kanban-api.okehc.com/api/factory/reconcile",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "timeout": 240000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cada 5 minutos, 12:20–22:00": {
+      "main": [
+        [
+          {
+            "node": "Conciliar tarjetas y estados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timezone": "America/Mexico_City",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionTimeout": 270,
+    "errorWorkflow": "WIL1go2TjyOL1s68"
+  },
+  "active": false
+}

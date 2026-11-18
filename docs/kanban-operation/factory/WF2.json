@@ -1,0 +1,316 @@
+{
+  "name": "02_Brio_Done_To_Nod_Eval",
+  "nodes": [
+    {
+      "id": "98a5969a-021c-4104-842c-ade132f18807",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "factory/brio-done",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "2588f434-d2f0-4de0-a6b1-da1eaf9a2913",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WXW1Qq0Mn5l5wcDr",
+          "name": "openai-radar-header"
+        }
+      }
+    },
+    {
+      "id": "7e437ac9-3a5f-4939-b200-3d2fbed42501",
+      "name": "Validar entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p = $input.first().json.body ?? $input.first().json;\nif (typeof p.event_id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(p.event_id)) throw new Error('event_id inválido');\np.task_id=Number(p.brio_task_id); if (!Number.isSafeInteger(p.task_id) || p.task_id<1 || p.research_zip_path!==p.event_id+'/02_research/research.zip') throw new Error('Entrega inválida');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "51d4bb73-6350-4e7b-b509-c9a05c680b80",
+      "name": "Consultar pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/rpc/factory_get",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_event_id:$('Validar entrada').first().json.event_id}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "9fd8c20c-817f-4476-9aff-393d386dbf64",
+      "name": "Consultar tarjeta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://kanban-api.okehc.com/api/tasks/' + $('Validar entrada').first().json.task_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    },
+    {
+      "id": "3e1db3c8-805d-4962-973c-513b1a12d001",
+      "name": "Validar entrega Brio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const t=$input.first().json,p=$('Validar entrada').first().json,f=$('Consultar pipeline').first().json;\nif (String(t.id)!==String(f.brio_task_id) || t.id!==p.task_id || t.project_id!==1 || t.claimed_by!=='brio' || t.status!=='review' || t.metadata_payload?.event_id!==p.event_id) throw new Error('La tarjeta no corresponde a la entrega en revisión');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "c0229a60-e2ee-49b9-be1d-2d57d3e91201",
+      "name": "Comprobar research.zip",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const p=$input.first().json; if (!p.event_id || !(p.bytes>0 || p.specs_ready || p.file_ready || p.release_ready)) throw new Error('Falló la operación de archivos.');\nreturn [{json:p}];"
+      }
+    },
+    {
+      "id": "eca0d9d9-dd41-4a52-9bd6-86b5cc2e4c7a",
+      "name": "Registrar investigación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/rpc/factory_research_done",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_payload:$('Validar entrada').first().json}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "e5f2626c-63b0-45e0-938d-fdd3413d639a",
+      "name": "Despertar Nod evaluador",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.100.86:8080/message/sendText/anyo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({number: '528145925005', text: 'WAKEUP NOD [EVALUACION] | Event: '+$('Validar entrada').first().json.event_id+' | Task Brio: #'+$('Validar entrada').first().json.brio_task_id+' | Revisa research.zip y envía tu decisión a https://anyo.okehc.com/webhook/factory/nod-decision. Al terminar consulta tu siguiente tarjeta.'}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "notes": "Selecciona Evolution Factory (Simplified Custom Auth, plantilla {\"headers\":{\"apikey\":\"{{api_key}}\"}}), URL, instancia y destinatario reales.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "pRyb5MlyNAjEuDud",
+          "name": "Evolution Factory"
+        }
+      }
+    },
+    {
+      "id": "f1010399-dd01-4ebe-b11a-f7c40407a1a8",
+      "name": "Verificar research.zip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kanban-api.okehc.com/api/factory/files/verify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({event_id:$('Validar entrada').first().json.event_id,zip_path:$('Validar entrada').first().json.research_zip_path}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Validar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar entrada": {
+      "main": [
+        [
+          {
+            "node": "Consultar pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar pipeline": {
+      "main": [
+        [
+          {
+            "node": "Consultar tarjeta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar tarjeta": {
+      "main": [
+        [
+          {
+            "node": "Validar entrega Brio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar research.zip": {
+      "main": [
+        [
+          {
+            "node": "Registrar investigación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar investigación": {
+      "main": [
+        [
+          {
+            "node": "Despertar Nod evaluador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar entrega Brio": {
+      "main": [
+        [
+          {
+            "node": "Verificar research.zip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar research.zip": {
+      "main": [
+        [
+          {
+            "node": "Comprobar research.zip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "active": false,
+  "nodeGroups": [
+    {
+      "id": "ec1e6518-0a11-42d1-8217-d7827797297f",
+      "name": "Validar entrega",
+      "nodeNames": [
+        "Validar entrada",
+        "Consultar pipeline",
+        "Consultar tarjeta",
+        "Validar entrega Brio",
+        "Verificar research.zip",
+        "Comprobar research.zip"
+      ],
+      "description": "Validar entrega dentro del ciclo de oportunidad."
+    }
+  ]
+}

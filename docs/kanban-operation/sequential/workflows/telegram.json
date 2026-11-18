@@ -1,0 +1,160 @@
+{
+  "name": "Fábrica secuencial - Entregar informe Telegram",
+  "nodes": [
+    {
+      "id": "13184297-2cf7-466b-aa79-6919585be9c8",
+      "name": "Informes pendientes, 21:00–22:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */5 21 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 0 22 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "03fca6f2-64ac-4eb2-8572-ac47d61d60f0",
+      "name": "Leer informe pendiente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://uobeshcvmtawjxibciuy.supabase.co/rest/v1/factory_daily_reports?sent_at=is.null&order=report_date.asc&limit=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "supabaseApi": {
+          "id": "6tc6sprc6stOuXbn",
+          "name": "RADARS_SUPABASE"
+        }
+      }
+    },
+    {
+      "id": "02e68f99-6a54-4264-9274-c01748a2f966",
+      "name": "Enviar informe a Cheko",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "7946431920",
+        "text": "={{ $json.message.replaceAll(\"&\",\"&amp;\").replaceAll(\"<\",\"&lt;\").replaceAll(\">\",\"&gt;\") }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "webhookId": "aac238f9-c04d-4314-b583-b405a382dd11",
+      "credentials": {
+        "telegramApi": {
+          "id": "PBFnJlQqPiAUFCsH",
+          "name": "Telegram Cheko"
+        }
+      }
+    },
+    {
+      "id": "d9037a12-4d02-43a5-b7e8-3ce75d917027",
+      "name": "Confirmar entrega",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://kanban-api.okehc.com/api/factory/reports/' + $('Leer informe pendiente').item.json.report_date + '/sent' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({message_id:Number($json.result?.message_id ?? $json.message_id)}) }}",
+        "options": {
+          "timeout": 240000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Informes pendientes, 21:00–22:00": {
+      "main": [
+        [
+          {
+            "node": "Leer informe pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer informe pendiente": {
+      "main": [
+        [
+          {
+            "node": "Enviar informe a Cheko",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar informe a Cheko": {
+      "main": [
+        [
+          {
+            "node": "Confirmar entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timezone": "America/Mexico_City",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionTimeout": 120,
+    "errorWorkflow": "WIL1go2TjyOL1s68"
+  },
+  "active": false
+}

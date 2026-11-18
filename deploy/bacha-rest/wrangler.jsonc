@@ -1,0 +1,13 @@
+{
+  "name": "kanban-bacha-rest",
+  "main": "worker.mjs",
+  "account_id": "06933359d16ec8970b472fae04e1ea28",
+  "compatibility_date": "2026-11-17",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  },
+  "routes": [{ "pattern": "kanban-api.okehc.com", "custom_domain": true }]
+}

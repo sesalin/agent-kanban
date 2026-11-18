@@ -2,7 +2,7 @@
 from functools import lru_cache
 from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # MCP streamable-HTTP transport enables DNS-rebinding protection by default and
@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     session_secret: str = "dev-insecure-secret-change-me"  # override via env in prod
     public_url: str = "http://localhost:7331"
+    muse_packages_root: str | None = None
+    factory_tasks_root: str | None = None
+    factory_supabase_url: str = "https://uobeshcvmtawjxibciuy.supabase.co"
+    factory_supabase_secret_key: SecretStr = SecretStr("")
     bootstrap_admin_username: str = "admin"
     # MCP transport security — DNS-rebinding protection allow-lists.
     # PUBLIC_URL's hostname is auto-appended if it is non-localhost.

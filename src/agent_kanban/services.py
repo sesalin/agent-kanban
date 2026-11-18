@@ -230,6 +230,12 @@ async def claim_task(
             reason=f"task is reserved for {existing.assigned_to!r}",
             task=None,
         )
+    if existing is not None:
+        from agent_kanban.factory_schedule import claim_blocker
+
+        reason = await claim_blocker(session, existing, agent)
+        if reason:
+            return ClaimResult(ok=False, reason=reason)
     # Ownership and the grant are checked again in the atomic UPDATE.
     now = _now()
     stmt = (
@@ -611,6 +617,19 @@ async def dispatch_task(session: AsyncSession, agent: str, data: DispatchTask) -
     await require_project(session, agent, data.project_id, "orchestrator")
     # Serialize dispatch and completion so a dependency cannot finish during dispatch.
     await session.get(Project, data.project_id, with_for_update=True)
+    dispatch_key = data.metadata.get("factory_dispatch_key")
+    if dispatch_key is not None:
+        if not isinstance(dispatch_key, str) or not dispatch_key or len(dispatch_key) > 200:
+            raise ValueError("factory_dispatch_key must contain 1 to 200 characters")
+        existing = (await session.execute(select(Task).where(
+            Task.project_id == data.project_id,
+            Task.created_by == agent,
+            Task.metadata_payload["factory_dispatch_key"].as_string() == dispatch_key,
+        ))).scalar_one_or_none()
+        if existing is not None:
+            if existing.assigned_to != data.assigned_to or existing.metadata_payload != data.metadata:
+                raise ValueError("factory_dispatch_key is already used by another dispatch")
+            return existing
     if data.assigned_to is not None:
         await require_project(session, data.assigned_to, data.project_id, "worker")
     dependencies = list(dict.fromkeys(data.dependencies))

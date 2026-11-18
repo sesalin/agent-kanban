@@ -1,0 +1,122 @@
+{
+  "name": "01 - Radar a Kanban & Wakeup Brio (Evolution WA)",
+  "nodes": [
+    {
+      "id": "c3a5dabe-03f9-488f-835f-2f91c6742225",
+      "name": "Webhook: Package Ready",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "radar-package-ready",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "cd85ffdf-1190-4fff-b13c-01c960ae8256"
+    },
+    {
+      "id": "916b44a8-1696-47d2-9dfc-71ae3ca9ebac",
+      "name": "Formatear Payload Kanban",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nconst item = incoming.body ?? incoming;\nconst eventId = typeof item.event_id === 'string' ? item.event_id.trim() : '';\nconst packagePath = typeof item.package_path === 'string'\n  ? item.package_path.trim().replace(/^\\/mnt\\/c\\/_mcp\\/muse-packages\\//, '')\n  : '';\nconst inputFile = typeof item.package_filename === 'string' ? item.package_filename.trim() : '';\nconst outputFile = 'hallazgos.zip';\n\nif (!eventId || !packagePath || !inputFile) {\n  throw new Error('event_id, package_path y package_filename son obligatorios.');\n}\nif (!packagePath.split('/').every(part => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(part))\n    || !/^[A-Za-z0-9][A-Za-z0-9._-]*\\.zip$/.test(inputFile)\n    || inputFile.toLowerCase() === outputFile) {\n  throw new Error('La ruta o el nombre del ZIP no son compatibles con Kanban.');\n}\n\nreturn [{\n  json: {\n    project_id: 1,\n    title: `Investigar: ${item.title || eventId}`,\n    description: item.summary || 'Investigar dolor de mercado y fuentes oficiales.',\n    assigned_to: 'brio',\n    priority: item.interest_level === 'HIGH' ? 'HIGH' : 'MEDIUM',\n    metadata: {\n      radar: item.radar_source || item.radar || 'gobierno-nl',\n      event_id: eventId,\n      ...(item.packaged_at ? { package_version: item.packaged_at } : {}),\n      muse_zip: { path: packagePath, input_file: inputFile, output_file: outputFile }\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "d7e200c0-844d-480a-81fb-7e92f45f6e71",
+      "name": "Crear Tarjeta Kanban",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        432,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kanban-api.okehc.com/api/tasks/dispatch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Formatear Payload Kanban').first().json) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "MhO6jMfbdNT6QcOg",
+          "name": "N8N_RADARES_KANBAN"
+        }
+      }
+    },
+    {
+      "id": "38ca4619-9ef7-4bd5-b6fe-893597d3c087",
+      "name": "Wakeup Brio (WhatsApp)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://TU_EVOLUTION_HOST/message/sendText/TU_INSTANCE_NAME",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  number: 'NUMERO_WHATSAPP_BRIO_O_GRUPO',\n  text: 'Brio: Tienes asignada la tarea #' + $('Crear Tarjeta Kanban').first().json.id +\n    ' en Kanban.\\n\\nObjetivo: ' + $('Formatear Payload Kanban').first().json.title +\n    '\\nPaquete: ' + $('Formatear Payload Kanban').first().json.metadata.muse_zip.path +\n    '/' + $('Formatear Payload Kanban').first().json.metadata.muse_zip.input_file +\n    '\\n\\nDescarga la entrada por REST y entrega hallazgos.zip.'\n}) }}",
+        "options": {}
+      },
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Webhook: Package Ready": {
+      "main": [
+        [
+          {
+            "node": "Formatear Payload Kanban",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Payload Kanban": {
+      "main": [
+        [
+          {
+            "node": "Crear Tarjeta Kanban",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Tarjeta Kanban": {
+      "main": [
+        [
+          {
+            "node": "Wakeup Brio (WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
