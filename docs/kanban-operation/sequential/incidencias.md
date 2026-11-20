@@ -151,3 +151,28 @@ Dot basándose únicamente en la prueba del servidor. Si el cliente no admite
 el recurso binario o la referencia de archivo, documentar el bloqueo exacto
 antes de cambiar de transporte. No se crearon pilotos ni entregables reales
 en nombre del agente.
+
+## 20-11-2026: Dot #34, recurso de entrada no resuelto por su cliente
+
+Dot confirmó su reclamo de la #34 y reportó que la descarga devolvía tamaño,
+hash y una URI mcp-file://, pero resources/read fallaba con Unknown resource
+(-32002) y no había ZIP en su workspace. Desde el conector del operador se
+confirmó esa respuesta de referencia: entrada de 25 392 bytes y hash
+876ec821cf68f393b6dbe4fc87f129d9c6bcc0b85cdb8fef792309bc2d80fb24.
+
+La corrección entrega EmbeddedResource con bytes binarios en la respuesta
+inicial, sin depender de una segunda resolución de esa URI y sin duplicar
+el contenido en structuredContent. Se mantienen identidad, proyecto y
+reclamo requeridos. La subida de resultado y los horarios no cambian.
+No se crea trabajo por Dot ni se modifica el estado de la tarjeta para
+resolver esta descarga. Sigue siendo necesaria su confirmación de que el
+adjunto se materializa en su workspace y de que coincide tamaño/hash.
+
+Verificación posterior al despliegue: el conector obsidian-mcp del operador
+recibió el EmbeddedResource con blob binario, sin structuredContent duplicado.
+Se decodificaron los 25 392 bytes y se verificaron SHA-256 y CRC del ZIP,
+coincidentes con la entrada previa. Las cinco pruebas del puente pasaron,
+así como el contrato binario/subida en el SDK 1.12.4 real. MegaMCP quedó
+saludable con imagen mega-mcp-dot-bridge:20261120-inline. No se modificó el
+estado ni se subió un resultado de la #34. Queda pendiente la confirmación
+de Dot de que el adjunto se materializa en su workspace concreto.

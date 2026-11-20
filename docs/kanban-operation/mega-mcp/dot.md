@@ -19,7 +19,7 @@ el desarrollo de la landing ni recibe el workspace de Dot.
 | `factory_dot_get_task(task_id)` | Lee la tarjeta y sus metadatos. |
 | `factory_dot_claim_task(task_id)` | Reclama; Kanban aplica permisos y horarios. |
 | `factory_dot_heartbeat(task_id, notes)` | Mantiene el reclamo y registra progreso. |
-| `factory_dot_download_input(task_id)` | Ofrece el ZIP completo como recurso binario MCP, junto con tamaño y SHA-256. El cliente lo descarga al workspace de Dot. |
+| `factory_dot_download_input(task_id)` | Adjunta los bytes del ZIP completo como recurso binario MCP, junto con tamaño y SHA-256. El cliente lo descarga al workspace de Dot. |
 | `factory_dot_list_input_files(task_id, archive="")` | Consulta opcional del contenido; permite inspeccionar research.zip anidado. |
 | `factory_dot_read_input_file(task_id, path, archive="", start_line=1, max_lines=160)` | Consulta opcional de texto de entrada; no es el mecanismo de desarrollo. |
 | `factory_dot_upload_result(task_id, file)` | Recibe el archivo ZIP que Dot ya creó y probó en su workspace; lo guarda mediante la API de su tarjeta. |
@@ -42,14 +42,23 @@ Esta regla aplica a todas las tarjetas, no únicamente a la #34.
 
 ## Transferencia binaria
 
-La descarga devuelve `resource_link`, MIME `application/zip`, con URI:
+La descarga devuelve un `EmbeddedResource` de tipo `resource`, MIME
+`application/zip`, que incluye el ZIP completo en `resource.blob` dentro de
+la misma respuesta MCP. La codificación base64 es interna del protocolo;
+no se pide al agente pegar contenido codificado en el chat. Se desactiva
+la salida estructurada duplicada de esta herramienta para evitar convertir
+el adjunto binario en una segunda copia JSON para el modelo.
 
-`mcp-file://factory-dot/tasks/<task_id>/landing-input.zip`
+La URI de identificación es `kanban-dot://tasks/<task_id>/landing-input.zip`.
+No hay que resolverla para obtener los bytes: ya vienen adjuntos. El host
+puede convertir el adjunto a su referencia nativa de archivo. Dot debe
+confirmar que lo materializó en su workspace y verificar el hash.
 
-El mismo servidor resuelve `resources/read` de esa URI con bytes del ZIP,
-comprobando de nuevo tarjeta, identidad y reclamo. El cliente debe guardar
-el archivo en su workspace y verificar su hash. La URI no es una URL web
-pública ni una ruta del filesystem local del agente.
+El contrato anterior devolvía solo `resource_link` con una URI `mcp-file://`
+creada por nuestro servidor. Dot reportó `Unknown resource (-32002)` al
+intentar resolverla desde su cliente. La corrección del 20-11 entrega los
+bytes junto a los metadatos, sin depender de esa segunda lectura. Se
+conserva la validación de identidad y reclamo; no se abrió una URL pública.
 
 La subida declara `_meta["openai/fileParams"] = ["file"]`. El host convierte
 el archivo local a `{download_url, file_id, mime_type?, file_name?}`. El

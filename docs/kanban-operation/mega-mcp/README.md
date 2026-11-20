@@ -18,7 +18,7 @@ Reutiliza el contenedor `mega-mcp` y el túnel OpenAI existentes en WSL.
 
 Se partió de la imagen que estaba ejecutando MegaMCP, guardada como
 `mega-mcp-dot-base:c291a337ed51`. Se añadió únicamente el módulo y el registro
-HTTP. Imagen activa: `mega-mcp-dot-bridge:20261119-workspace`.
+HTTP. Imagen activa: `mega-mcp-dot-bridge:20261120-inline`.
 
 `/mnt/c/_mcp/mega-mcp/docker-compose.override.yml` agrega la imagen y el archivo
 privado de variables. No contiene el token. Los valores efectivos de Compose
@@ -80,3 +80,13 @@ El SDK 1.12.4 no propaga _meta de descriptores desde FastMCP; se usa su registro
 de list_tools de bajo nivel para añadir openai/fileParams únicamente al tool
 de subida, conservando el resto del catálogo. El recurso ZIP se registra con
 el mecanismo de recursos del mismo servidor. No se añadieron dependencias.
+
+### Corrección de descarga del 20-11-2026
+
+Dot no pudo materializar el resource_link de la tarjeta #34: su cliente
+reportó Unknown resource (-32002). La descarga ahora adjunta un
+EmbeddedResource con bytes del ZIP en la misma respuesta MCP y sin salida
+estructurada duplicada. No depende de resolver la referencia previa
+mcp-file://. Permisos, reclamo, horarios y subida nativa permanecen iguales.
+El cliente debe confirmar el archivo en su propio workspace; no se crea
+una landing ni se envía la tarjeta a revisión durante el diagnóstico.

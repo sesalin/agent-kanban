@@ -1,5 +1,6 @@
 """Bounded contract tests for the Dot bridge, using a simulated Kanban backend."""
 
+import base64
 import copy
 import json
 from io import BytesIO
@@ -91,9 +92,11 @@ def test_workspace_zip_exchange_and_idempotent_publication(backend, monkeypatch)
         dot.factory_dot_download_input(42)
     dot.factory_dot_claim_task(42)
     contents = dot.factory_dot_download_input(42)
-    assert contents[1].type == "resource_link"
-    assert contents[1].mimeType == "application/zip"
-    assert str(contents[1].uri) == "mcp-file://factory-dot/tasks/42/landing-input.zip"
+    assert contents[1].type == "resource"
+    assert contents[1].resource.mimeType == "application/zip"
+    assert str(contents[1].resource.uri) == "kanban-dot://tasks/42/landing-input.zip"
+    with ZipFile(BytesIO(base64.b64decode(contents[1].resource.blob))) as z:
+        assert "research.zip" in z.namelist()
     assert (
         dot.factory_dot_read_input_file(42, "hallazgos.md", archive="research.zip")["content"]
         == "Verified research"
@@ -184,10 +187,16 @@ async def test_native_file_catalog_and_binary_resource(backend, monkeypatch):
     linked = await on.call_tool("factory_dot_download_input", {"task_id": 42})
     if isinstance(linked, tuple):  # Newer SDK returns (content, structuredContent).
         linked = linked[0]
-    resource = next(item for item in linked if item.type == "resource_link")
-    contents = await on.read_resource(resource.uri)
-    raw = next(iter(contents)).content
+    resource = next(item.resource for item in linked if item.type == "resource")
+    raw = base64.b64decode(resource.blob, validate=True)
     assert isinstance(raw, bytes)
+    # The tool response itself carries the ZIP; a client need not resolve resources/read.
+    assert (
+        next(t for t in result.root.tools if t.name == "factory_dot_download_input").outputSchema
+        is None
+    )
+    contents = await on.read_resource(resource.uri)
+    assert next(iter(contents)).content == raw
     expected = json.loads(next(item.text for item in linked if item.type == "text"))
     assert hashlib.sha256(raw).hexdigest() == expected["sha256"]
     with ZipFile(BytesIO(raw)) as z:

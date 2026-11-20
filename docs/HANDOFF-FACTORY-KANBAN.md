@@ -277,7 +277,7 @@ a todas las tarjetas. No se cambiaron permisos ni lógica del servidor para
 esta corrección de instrucciones. La instantánea del inicio sigue fechada
 el 19 de noviembre y no representa el estado actual de la #34.
 
-`factory_dot_download_input` devuelve un recurso binario `application/zip` con URI `mcp-file://factory-dot/tasks/<ID>/landing-input.zip`, además de tamaño y SHA-256. El mismo MCP resuelve `resources/read`. Una URI devuelta sin archivo realmente materializado en el workspace no prueba una descarga completada.
+**Corrección de descarga del 20-11-2026:** `factory_dot_download_input` ahora adjunta los bytes completos del ZIP como `EmbeddedResource` (`resource.blob`, MIME `application/zip`), junto con tamaño y SHA-256. La URI identificadora es `kanban-dot://tasks/<ID>/landing-input.zip`, pero no se necesita resolverla: el contenido viene en esa misma respuesta. Se desactiva la salida estructurada duplicada para no enviar otra copia JSON del binario al modelo. El contrato anterior entregaba solo un `resource_link` con una URI `mcp-file://` generada por el servidor y Dot reportó `Unknown resource (-32002)` con la #34. Solicitar una nueva descarga, no reutilizar esa respuesta antigua. El agente todavía debe confirmar la materialización real en su propio workspace; un adjunto anunciado sin archivo local no acredita ese paso.
 
 `factory_dot_upload_result(task_id, file)` declara `openai/fileParams`; el host debe transformar el archivo local del agente en referencia temporal descargable. No pasar un path local del workspace como si el MCP pudiera abrirlo. No usar base64 por el chat. El servidor comprueba el ZIP, descarga sin reenviar el token de Kanban y guarda los bytes originales en el resultado canónico de la tarjeta.
 
@@ -371,7 +371,7 @@ Para reconstruir el esquema de fábrica en una instalación autorizada de la bas
 - Código operativo: `/mnt/c/_mcp/mega-mcp/app/mcp/factory_dot_bridge.py`.
 - Registro: `app/mcp/http_server.py`, activación `FACTORY_DOT_BRIDGE_ENABLED=true`.
 - Copia versionada del módulo y sus pruebas: `deploy/mega-mcp/` de este repositorio.
-- Contenedor: `mega-mcp`; imagen activa `mega-mcp-dot-bridge:20261119-workspace`.
+- Contenedor: `mega-mcp`; imagen activa `mega-mcp-dot-bridge:20261120-inline`.
 - Override: `/mnt/c/_mcp/mega-mcp/docker-compose.override.yml`.
 - Transporte cliente: túnel OpenAI ya existente; no se creó otro contenedor MCP ni un OAuth nuevo para Dot.
 - Hacia Kanban: `http://host.docker.internal:7331`, con Bearer propio de Dot, sin pasar por Cloudflare para ese tramo interno.

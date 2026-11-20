@@ -1,5 +1,6 @@
 """Task-scoped Dot access to Agent Kanban; credentials never cross the MCP boundary."""
 
+import base64
 import hashlib
 import json
 import os
@@ -12,9 +13,9 @@ from urllib.parse import urlsplit
 from urllib.request import Request
 from zipfile import BadZipFile, ZipFile
 
-from app.mcp.audit import register_traced_tool
+from app.mcp.audit import audit_tool, register_traced_tool
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ResourceLink, TextContent
+from mcp.types import BlobResourceContents, EmbeddedResource, TextContent
 from pydantic import BaseModel, ConfigDict
 
 MAX_ZIP = 10 * 1024 * 1024
@@ -252,8 +253,8 @@ def _input_zip(task_id: int) -> bytes:
     return _request("GET", f"/api/tasks/{task_id}/package/input", zip_response=True)
 
 
-def factory_dot_download_input(task_id: int) -> list[TextContent | ResourceLink]:
-    """Download the complete input ZIP to Dot's own workspace via an MCP binary resource."""
+def factory_dot_download_input(task_id: int) -> list[TextContent | EmbeddedResource]:
+    """Deliver the complete input ZIP inline as a binary attachment for Dot's workspace."""
     raw = _input_zip(task_id)
     return [
         TextContent(
@@ -267,12 +268,13 @@ def factory_dot_download_input(task_id: int) -> list[TextContent | ResourceLink]
                 }
             ),
         ),
-        ResourceLink(
-            type="resource_link",
-            uri=f"mcp-file://factory-dot/tasks/{task_id}/landing-input.zip",
-            name="landing-input.zip",
-            mimeType="application/zip",
-            size=len(raw),
+        EmbeddedResource(
+            type="resource",
+            resource=BlobResourceContents(
+                uri=f"kanban-dot://tasks/{task_id}/landing-input.zip",
+                mimeType="application/zip",
+                blob=base64.b64encode(raw).decode("ascii"),
+            ),
         ),
     ]
 
@@ -411,10 +413,14 @@ def register_dot_tools(server: FastMCP) -> None:
     """Opt in explicitly; existing transports/profiles keep their previous capabilities."""
     if os.getenv("FACTORY_DOT_BRIDGE_ENABLED", "false").lower() == "true":
         for tool in DOT_TOOLS:
-            register_traced_tool(server, tool)
+            if tool is factory_dot_download_input:
+                # Keep ZIP bytes out of duplicated model-visible structured JSON.
+                server.add_tool(audit_tool(tool), structured_output=False)
+            else:
+                register_traced_tool(server, tool)
 
         @server.resource(
-            "mcp-file://factory-dot/tasks/{task_id}/landing-input.zip", mime_type="application/zip"
+            "kanban-dot://tasks/{task_id}/landing-input.zip", mime_type="application/zip"
         )
         def input_resource(task_id: str) -> bytes:
             return _input_zip(_id(int(task_id)))
