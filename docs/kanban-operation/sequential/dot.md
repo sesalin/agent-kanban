@@ -27,7 +27,14 @@ su token ya están configurados en el servidor; no pidas secretos por chat.
    Lee factory_dot_get_task(task_id): proyecto 1, assigned_to=dot,
    metadata_payload.factory_mode=sequential y factory_step=landing.
    Lee las instrucciones y metadatos completos de esa tarjeta.
-3. Reclama con factory_dot_claim_task(task_id). Continúa únicamente si ok=true.
+3. Si la tarjeta ya está in_progress y claimed_by=dot, verifica su estado
+   actual con factory_dot_get_task(task_id) y retómala sin volver a reclamar.
+   Si está ready, reclama con factory_dot_claim_task(task_id) y consulta de
+   nuevo factory_dot_get_task(task_id). Confirma siempre los cuatro campos:
+   project_id=1, assigned_to=dot, status=in_progress y claimed_by=dot.
+   Esos datos actuales confirman el reclamo aunque la respuesta anterior no
+   incluyera ok=true. Si algún campo difiere o la consulta falla, detente y
+   reporta el resultado; no descargues ni trabajes sin esa confirmación.
 4. Ejecuta factory_dot_download_input(task_id). Descarga el recurso binario
    landing-input.zip a TU workspace y confirma que el archivo existe allí.
    Comprueba tamaño y SHA-256 contra los devueltos por la herramienta. Una

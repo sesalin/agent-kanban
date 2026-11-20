@@ -30,6 +30,16 @@ Se retiraron las herramientas `factory_dot_write_output_file`,
 construir archivos y armar el ZIP en el servidor. Refresca la conexión MCP
 para que Dot vea el catálogo nuevo; no uses sus descripciones anteriores.
 
+## Confirmación y recuperación del reclamo
+
+Después de reclamar, consulta `factory_dot_get_task(task_id)` y exige
+`project_id=1`, `assigned_to=dot`, `status=in_progress` y `claimed_by=dot`.
+Estos cuatro campos actuales confirman el reclamo; la ausencia de `ok=true`
+en la respuesta anterior no lo invalida. Si la tarjeta ya cumple esas
+condiciones, retómala sin volver a reclamarla. Si un campo difiere o la
+consulta falla, detente y reporta; no descargues ni trabajes sin confirmar.
+Esta regla aplica a todas las tarjetas, no únicamente a la #34.
+
 ## Transferencia binaria
 
 La descarga devuelve `resource_link`, MIME `application/zip`, con URI:
