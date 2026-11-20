@@ -451,6 +451,7 @@ Documentación operativa relacionada:
 - [Mensajes de programación para copiar](kanban-operation/sequential/programaciones.md).
 - [Brio](kanban-operation/sequential/brio.md).
 - [Bacha](kanban-operation/sequential/bacha.md).
+- [Calidad de requerimientos de Bacha](kanban-operation/sequential/bacha-requerimientos.md): análisis del caso y prompt completo de las tres ramas.
 - [Codex](kanban-operation/sequential/codex.md).
 - [Dot: contrato vigente de workspace](kanban-operation/sequential/dot.md).
 - [n8n](kanban-operation/sequential/n8n.md).
@@ -461,3 +462,26 @@ Documentación operativa relacionada:
 - [Inventario de identidades](kanban-operation/agentes.md).
 
 La documentación histórica puede contener reparto anterior, horario Telegram 21:00, landing para Bacha, integración por eventos, usuarios retirados o la primera escritura de Dot archivo por archivo. Para continuar, prevalecen este hand-off, el código desplegado y los prompts vigentes de `sequential/`. Si divergen, verificar el estado real y documentar la diferencia antes de tocar producción.
+
+
+## Actualización del 20-11-2026: requerimientos de Bacha
+
+Se revisaron los tres encargos de la oportunidad de entornos digitales
+seguros contra la investigación de Brio. MVP mezclaba aceptación del software
+con resultados de un piloto de semanas y dependencias externas sin concretar;
+prospección mezclaba investigación con entrevistas/ventas y ausencia de datos
+con ausencia de capacidades del candidato; landing dejaba incompletos oferta,
+operación de conversión y criterios de aceptación. No se revalidaron las
+afirmaciones jurídicas o de mercado de esos insumos.
+
+El operador aprobó el prompt de mejora. `bacha-requerimientos.md` forma parte
+de la guía vigente de Bacha: exige una base comercial común, alcance realizable,
+dependencias y faltantes explícitos, aceptación comprobable y separación entre
+prototipo, sandbox, piloto y operación. En FINAL debe distinguir contrato
+técnico, calidad del producto y preparación para publicar/vender.
+
+El esquema de `decision.json` y sus tres campos de texto no cambian. n8n sigue
+generando las especificaciones y paquetes; ninguna entrega previa se reescribió.
+El agente Bacha debe recibir/cargar el prompt: documentarlo en el repositorio
+no actualiza automáticamente su memoria o programación externa. No se cambiaron
+servicios, horarios, permisos, tarjetas ni validadores mediante este ajuste.

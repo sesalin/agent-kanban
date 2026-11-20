@@ -89,6 +89,7 @@ su cola cada cinco minutos de 16:00 a 17:55, sin modelo si está vacía.
 
 - [Brio](brio.md): instrucciones y programación diaria.
 - [Bacha](bacha.md): tres horarios y contratos de evaluación, prospección y cierre.
+- [Calidad de requerimientos de Bacha](bacha-requerimientos.md): prompt obligatorio para especificar MVP, prospección y landing, con alcance, dependencias y aceptación verificable.
 - [Dot](dot.md): prompt, programación a las 16:00 y herramientas de archivos mediante obsidian-mcp.
 - [Codex](codex.md): construcción local, temporizador y recuperación.
 - [n8n](n8n.md): reglas mecánicas, conexiones y workflows.
@@ -213,3 +214,16 @@ prueba en su propio workspace y sube el ZIP terminado con archivo nativo.
 El MCP no es su workspace ni ejecuta el desarrollo. Consulta dot.md antes
 de cargar el prompt; las herramientas antiguas de escritura individual ya
 no están expuestas. El horario de las 16:00 y el reparto permanecen vigentes.
+
+## Calidad de los encargos — actualización del 20-11-2026
+
+Bacha debe aplicar `bacha-requerimientos.md` antes de entregar una nueva
+decisión. Los tres prompts deben compartir cliente, oferta y fase, separar
+aceptación técnica de metas comerciales y declarar dependencias disponibles,
+simulaciones y bloqueos. Cada rama debe poder ejecutarse en paralelo.
+
+Se conserva el JSON y sus tres cadenas `mvp_prompt`, `icp_prompt` y
+`landing_prompt`. El coordinador sigue generando los `.md` y ZIP. La guía
+no modifica los validadores automáticos ni implica que el estado `done`
+acredite calidad comercial o preparación para publicar. Las decisiones ya
+procesadas requieren retrabajo trazable; no sobrescribir sus paquetes.

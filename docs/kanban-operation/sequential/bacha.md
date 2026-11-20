@@ -26,6 +26,14 @@ las nuevas etapas de esta fábrica.
 
 ## Evaluación — `evaluation`
 
+Antes de redactar las tres especificaciones, aplica el
+[contrato de calidad de requerimientos](bacha-requerimientos.md). Es parte
+de estas instrucciones: separa alcance técnico, hipótesis comerciales y
+prerequisitos operativos; define aceptación comprobable por rama. Mantén
+los tres prompts como cadenas Markdown dentro del JSON existente. La guía
+no autoriza sobrescribir decisiones procesadas ni cambiar encargos activos.
+
+
 El ZIP de entrada es la investigación de Brio. Evalúa evidencia, urgencia,
 repetición del dolor, cliente pagador, competencia y viabilidad técnica.
 Entrega **`decision.zip`**, con **`decision.json` en su raíz**, usando este

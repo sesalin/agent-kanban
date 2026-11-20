@@ -44,6 +44,14 @@ solo revisa lo que n8n ya habilitó con todas las ramas activas terminadas.»
 
 [Contrato y mensajes de cada etapa de Bacha](bacha.md).
 
+Antes de la siguiente evaluación, pasar también el
+[prompt de calidad de requerimientos](bacha-requerimientos.md) y pedir que lo
+incorpore a sus instrucciones de EVALUATION y revisión FINAL. Debe definir
+encargos ejecutables para las tres ramas y distinguir entrega técnica de
+validación comercial y operación real. Este ajuste conserva los tres horarios,
+el esquema JSON y el reparto; no regenera paquetes ya consumidos.
+
+
 ## Corrección de Codex
 
 Su timer ya consulta desde las 16:00 hasta las 17:55. No hay que crear otro.
