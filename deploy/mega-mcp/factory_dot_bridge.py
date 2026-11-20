@@ -3,19 +3,30 @@
 import hashlib
 import json
 import os
+import stat
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request
-from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile, ZipInfo
+from zipfile import BadZipFile, ZipFile
 
 from app.mcp.audit import register_traced_tool
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ResourceLink, TextContent
+from pydantic import BaseModel, ConfigDict
 
 MAX_ZIP = 10 * 1024 * 1024
 MAX_INPUT = 32 * 1024 * 1024
-MAX_TEXT = 256 * 1024
+
+
+class OpenAIFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    download_url: str
+    file_id: str
+    mime_type: str = ""
+    file_name: str = ""
 
 
 def _base_url() -> str:
@@ -133,7 +144,7 @@ def _work(task: dict) -> Path:
     root = Path(os.getenv("FACTORY_DOT_PACKAGES_ROOT", "/muse-packages"))
     if root.absolute() != root.resolve() or not root.is_dir():
         raise ValueError("Package root is not available")
-    work = _safe(root, event + "/06_landing/.dot-work/task-" + str(task["id"]))
+    work = _safe(root, event + "/06_landing/.dot-transfer/task-" + str(task["id"]))
     work.mkdir(parents=True, exist_ok=True)
     return work
 
@@ -236,77 +247,100 @@ def factory_dot_read_input_file(
         return _text(z.read(info), start_line, max_lines)
 
 
-def factory_dot_write_output_file(
-    task_id: int, path: str, content: str, expected_sha256: str | None = None
-) -> dict:
-    """Create/update one UTF-8 landing file (256 KiB max). For changes pass its previous hash."""
-    work = _work(_task(task_id, claimed=True))
-    files = work / "files"
-    files.mkdir(exist_ok=True)
-    target = _safe(files, path)
-    data = content.encode("utf-8")
-    if len(data) > MAX_TEXT:
-        raise ValueError("Output file exceeds 256 KiB")
-    if (work / "uploaded.json").exists():
-        raise ValueError("This result was already published")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists() and target.read_bytes() != data:
-        current = hashlib.sha256(target.read_bytes()).hexdigest()
-        if current != expected_sha256:
-            raise ValueError("File changed; read it and pass expected_sha256")
-    # Atomic replacement avoids leaving a truncated artifact if the process stops.
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as f:
-        temp = Path(f.name)
-        try:
-            f.write(data)
-            f.flush()
-            os.fsync(f.fileno())
-            f.close()
-            if target.is_symlink():
-                raise ValueError("Output is a symlink")
-            os.replace(temp, target)
-        finally:
-            temp.unlink(missing_ok=True)
-    return {"path": path, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+def _input_zip(task_id: int) -> bytes:
+    _work(_task(task_id, claimed=True))
+    return _request("GET", f"/api/tasks/{task_id}/package/input", zip_response=True)
 
 
-def factory_dot_read_output_file(
-    task_id: int, path: str, start_line: int = 1, max_lines: int = 160
-) -> dict:
-    """Read one of this claimed task's staged landing files and its hash."""
-    work = _work(_task(task_id, claimed=True))
-    file = _safe(work / "files", path)
-    if not file.is_file() or file.stat().st_size > MAX_TEXT:
-        raise ValueError("Output file unavailable")
-    return _text(file.read_bytes(), start_line, max_lines)
+def factory_dot_download_input(task_id: int) -> list[TextContent | ResourceLink]:
+    """Download the complete input ZIP to Dot's own workspace via an MCP binary resource."""
+    raw = _input_zip(task_id)
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "task_id": task_id,
+                    "bytes": len(raw),
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "instruction": "Save the binary resource in your own workspace, verify its hash and work there.",
+                }
+            ),
+        ),
+        ResourceLink(
+            type="resource_link",
+            uri=f"mcp-file://factory-dot/tasks/{task_id}/landing-input.zip",
+            name="landing-input.zip",
+            mimeType="application/zip",
+            size=len(raw),
+        ),
+    ]
 
 
-def factory_dot_publish_result(task_id: int) -> dict:
-    """ZIP the staged landing (index.html + README.md required) and PUT it to this task."""
-    work = _work(_task(task_id, claimed=True))
-    files = work / "files"
-    if files.is_symlink() or files.resolve() != files.absolute() or not files.is_dir():
-        raise ValueError("No staged landing files")
-    paths = sorted(files.rglob("*"))
-    if any(p.is_symlink() for p in paths):
-        raise ValueError("Symlinks are not allowed")
-    paths = [p for p in paths if p.is_file()]
-    names = {str(p.relative_to(files)) for p in paths}
-    if not {"index.html", "README.md"} <= names:
-        raise ValueError("index.html and README.md are required")
-    if len(paths) > 512 or sum(p.stat().st_size for p in paths) > MAX_ZIP:
-        raise ValueError("Landing exceeds file count/size limits")
-    data = BytesIO()
-    with ZipFile(data, "w", compression=ZIP_DEFLATED) as z:
-        for p in paths:
-            info = ZipInfo(str(p.relative_to(files)))
-            info.compress_type = ZIP_DEFLATED
-            z.writestr(info, p.read_bytes())
-    body = data.getvalue()
+def _download_file(file: OpenAIFile) -> bytes:
+    url = urlsplit(file.download_url)
+    host = (url.hostname or "").lower()
+    if (
+        url.scheme != "https"
+        or url.port not in (None, 443)
+        or url.username
+        or url.password
+        or url.fragment
+        or not file.file_id.strip()
+        or not (
+            host.endswith((".oaiusercontent.com", ".chatgpt.com"))
+            or host in ("oaiusercontent.com", "chatgpt.com")
+        )
+    ):
+        raise ValueError("A temporary HTTPS file reference from ChatGPT is required")
+    from urllib.request import HTTPRedirectHandler, build_opener
+
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    # Never send the Kanban token to the file host or follow a supplied redirect.
+    req = Request(file.download_url, headers={"User-Agent": "MegaMCP-Dot/1.0"})
+    try:
+        with build_opener(NoRedirect).open(req, timeout=30) as response:
+            body = response.read(MAX_ZIP + 1)
+    except HTTPError as error:
+        raise ValueError(f"File download HTTP {error.code}; renew the file reference") from None
+    except (URLError, TimeoutError):
+        raise ValueError("File reference is unavailable; renew it") from None
     if len(body) > MAX_ZIP:
         raise ValueError("Result ZIP exceeds 10 MiB")
+    return body
+
+
+def _validate_result(body: bytes) -> None:
+    try:
+        with ZipFile(BytesIO(body)) as z:
+            infos = z.infolist()
+            if (
+                not infos
+                or len(infos) > 2000
+                or sum(i.file_size for i in infos) > 100 * 1024 * 1024
+            ):
+                raise ValueError("ZIP exceeds member/uncompressed limits")
+            names = []
+            for info in infos:
+                names.append(_relative(info.filename.rstrip("/")))
+                if info.flag_bits & 1 or stat.S_ISLNK(info.external_attr >> 16):
+                    raise ValueError("Encrypted files and symlinks are not allowed")
+            if len(set(names)) != len(names) or "README.md" not in z.namelist():
+                raise ValueError("ZIP requires README.md and unique relative paths")
+            if z.testzip() is not None:
+                raise ValueError("ZIP checksum failed")
+    except BadZipFile:
+        raise ValueError("The result must be a valid ZIP") from None
+
+
+def factory_dot_upload_result(task_id: int, file: OpenAIFile) -> dict:
+    """Upload Dot's completed workspace ZIP as a native ChatGPT file; never a server-local path."""
+    work = _work(_task(task_id, claimed=True))
+    body = _download_file(file)
+    _validate_result(body)
     digest = hashlib.sha256(body).hexdigest()
     receipt = work / "uploaded.json"
     if receipt.exists():
@@ -314,7 +348,7 @@ def factory_dot_publish_result(task_id: int) -> dict:
             raise ValueError("Invalid upload receipt")
         saved = json.loads(receipt.read_text())
         if saved["sha256"] != digest:
-            raise ValueError("Published result differs from staged files")
+            raise ValueError("A different result was already published")
         return saved
     response = _request("PUT", f"/api/tasks/{task_id}/package/result", binary=body)
     saved = {
@@ -366,9 +400,8 @@ DOT_TOOLS = (
     factory_dot_heartbeat,
     factory_dot_list_input_files,
     factory_dot_read_input_file,
-    factory_dot_write_output_file,
-    factory_dot_read_output_file,
-    factory_dot_publish_result,
+    factory_dot_download_input,
+    factory_dot_upload_result,
     factory_dot_submit_review,
 )
 DOT_TOOL_NAMES = frozenset(tool.__name__ for tool in DOT_TOOLS)
@@ -379,3 +412,18 @@ def register_dot_tools(server: FastMCP) -> None:
     if os.getenv("FACTORY_DOT_BRIDGE_ENABLED", "false").lower() == "true":
         for tool in DOT_TOOLS:
             register_traced_tool(server, tool)
+
+        @server.resource(
+            "mcp-file://factory-dot/tasks/{task_id}/landing-input.zip", mime_type="application/zip"
+        )
+        def input_resource(task_id: str) -> bytes:
+            return _input_zip(_id(int(task_id)))
+
+        # SDK 1.12 omits descriptor _meta; preserve the normal catalog and add file rewriting.
+        @server._mcp_server.list_tools()
+        async def tools_with_file_params():
+            tools = await server.list_tools()
+            for tool in tools:
+                if tool.name == "factory_dot_upload_result":
+                    tool.meta = {"openai/fileParams": ["file"]}
+            return tools

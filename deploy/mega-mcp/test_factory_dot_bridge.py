@@ -75,35 +75,51 @@ def backend(tmp_path, monkeypatch):
     return task, calls, tmp_path
 
 
-def test_complete_landing_exchange_and_idempotent_publication(backend):
+def result_file():
+    return dot.OpenAIFile(
+        download_url="https://files.oaiusercontent.com/result.zip?temporary=1",
+        file_id="file-workspace",
+        mime_type="application/zip",
+        file_name="landing.zip",
+    )
+
+
+def test_workspace_zip_exchange_and_idempotent_publication(backend, monkeypatch):
     _task, calls, root = backend
     assert dot.factory_dot_status()["assigned_ready_task_ids"] == [42]
     with pytest.raises(ValueError, match="active Dot claim"):
-        dot.factory_dot_write_output_file(42, "index.html", "Too early")
+        dot.factory_dot_download_input(42)
     dot.factory_dot_claim_task(42)
-    assert (
-        dot.factory_dot_read_input_file(42, "landing_spec.md", max_lines=1)["content"]
-        == "Build a simple landing"
-    )
+    contents = dot.factory_dot_download_input(42)
+    assert contents[1].type == "resource_link"
+    assert contents[1].mimeType == "application/zip"
+    assert str(contents[1].uri) == "mcp-file://factory-dot/tasks/42/landing-input.zip"
     assert (
         dot.factory_dot_read_input_file(42, "hallazgos.md", archive="research.zip")["content"]
         == "Verified research"
     )
-    dot.factory_dot_heartbeat(42, "Working")
-    dot.factory_dot_write_output_file(42, "index.html", "<h1>Landing</h1>")
-    dot.factory_dot_write_output_file(42, "assets/style.css", "body {color: black}")
-    dot.factory_dot_write_output_file(42, "README.md", "Open index.html")
-    receipt = dot.factory_dot_publish_result(42)
-    assert dot.factory_dot_publish_result(42) == receipt
+    dot.factory_dot_heartbeat(42, "Developing and testing in my workspace")
+    # This completed archive represents a file built by Dot in its own workspace.
+    body = make_zip(
+        {
+            "README.md": "Build and tests run by Dot",
+            "package.json": "{}",
+            "assets/image.bin": b"\x00\xff\x01",
+            "src/index.js": "console.log('landing')",
+        }
+    )
+    monkeypatch.setattr(dot, "_download_file", lambda file, data=body: data)
+    receipt = dot.factory_dot_upload_result(42, result_file())
+    assert dot.factory_dot_upload_result(42, result_file()) == receipt
     assert sum(method == "PUT" for method, _ in calls) == 1
-    with ZipFile(root / "event-1/06_landing/landing.zip") as z:
-        assert set(z.namelist()) == {"index.html", "assets/style.css", "README.md"}
-    assert dot.factory_dot_submit_review(42, "Built and checked")["status"] == "review"
+    assert (root / "event-1/06_landing/landing.zip").read_bytes() == body
+    assert not list(root.rglob("index.js"))  # No development files on the MCP host.
+    assert dot.factory_dot_submit_review(42, "Built and tested locally")["status"] == "review"
     assert dot.factory_dot_submit_review(42, "Retry")["status"] == "review"
     assert sum(path.endswith("/submit") for _, path in calls) == 1
 
 
-def test_scope_and_paths_and_symlinks(backend):
+def test_scope_paths_and_rejected_workspace_archives(backend, monkeypatch):
     task, _, root = backend
     for field, value in [("project_id", 2), ("assigned_to", "brio")]:
         old = task[field]
@@ -112,37 +128,35 @@ def test_scope_and_paths_and_symlinks(backend):
             dot.factory_dot_get_task(42)
         task[field] = old
     dot.factory_dot_claim_task(42)
+    with pytest.raises(ValueError, match="Publish the ZIP first"):
+        dot.factory_dot_submit_review(42, "Too early")
     for path in ["../outside", "/outside", "a/../../outside", "a\\outside", "a/./outside"]:
+        body = make_zip({"README.md": "Docs", path: "Rejected"})
+        monkeypatch.setattr(dot, "_download_file", lambda file, data=body: data)
         with pytest.raises(ValueError):
-            dot.factory_dot_write_output_file(42, path, "No")
-    dot.factory_dot_write_output_file(42, "index.html", "Index")
-    work = root / "event-1/06_landing/.dot-work/task-42/files"
-    (work / "escape").symlink_to(root, target_is_directory=True)
+            dot.factory_dot_upload_result(42, result_file())
+    for body in [b"not-a-zip", make_zip({"index.html": "Missing docs"})]:
+        monkeypatch.setattr(dot, "_download_file", lambda file, data=body: data)
+        with pytest.raises(ValueError):
+            dot.factory_dot_upload_result(42, result_file())
+    target = root / "event-1/06_landing/.dot-transfer/task-42"
+    target.rmdir()
+    target.symlink_to(root, target_is_directory=True)
     with pytest.raises(ValueError, match="Symlink"):
-        dot.factory_dot_write_output_file(42, "escape/secret", "No")
+        dot.factory_dot_download_input(42)
+    target.unlink()
     task["metadata_payload"]["muse_zip"]["output_path"] = "other-event/06_landing"
     with pytest.raises(ValueError, match="canonical"):
-        dot.factory_dot_read_output_file(42, "index.html")
+        dot.factory_dot_download_input(42)
     assert not (root / "secret").exists()
 
 
-def test_update_hash_limits_and_publish_before_submit(backend):
-    dot.factory_dot_claim_task(42)
-    original = dot.factory_dot_write_output_file(42, "index.html", "First")
-    assert dot.factory_dot_write_output_file(42, "index.html", "First") == original
-    with pytest.raises(ValueError, match="File changed"):
-        dot.factory_dot_write_output_file(42, "index.html", "Changed")
-    sha = dot.factory_dot_read_output_file(42, "index.html")["sha256"]
-    dot.factory_dot_write_output_file(42, "index.html", "Changed", expected_sha256=sha)
-    with pytest.raises(ValueError, match="256 KiB"):
-        dot.factory_dot_write_output_file(42, "large.txt", "x" * (dot.MAX_TEXT + 1))
-    with pytest.raises(ValueError, match="README"):
-        dot.factory_dot_publish_result(42)
-    with pytest.raises(ValueError, match="Publish the ZIP first"):
-        dot.factory_dot_submit_review(42, "Too early")
+@pytest.mark.asyncio
+async def test_native_file_catalog_and_binary_resource(backend, monkeypatch):
+    import hashlib
 
+    from mcp.types import ListToolsRequest
 
-def test_opt_in_registration(monkeypatch):
     monkeypatch.delenv("FACTORY_DOT_BRIDGE_ENABLED", raising=False)
     off = FastMCP("off")
     dot.register_dot_tools(off)
@@ -151,6 +165,67 @@ def test_opt_in_registration(monkeypatch):
     on = FastMCP("on")
     dot.register_dot_tools(on)
     assert {t.name for t in on._tool_manager.list_tools()} == dot.DOT_TOOL_NAMES
+    assert (
+        not {
+            "factory_dot_write_output_file",
+            "factory_dot_read_output_file",
+            "factory_dot_publish_result",
+        }
+        & dot.DOT_TOOL_NAMES
+    )
+    handler = on._mcp_server.request_handlers[ListToolsRequest]
+    result = await handler(ListToolsRequest(method="tools/list"))
+    upload = next(t for t in result.root.tools if t.name == "factory_dot_upload_result")
+    assert upload.meta == {"openai/fileParams": ["file"]}
+    schema = upload.inputSchema["$defs"]["OpenAIFile"]
+    assert set(schema["properties"]) == {"download_url", "file_id", "mime_type", "file_name"}
+    assert set(schema["required"]) == {"download_url", "file_id"}
+    dot.factory_dot_claim_task(42)
+    linked = await on.call_tool("factory_dot_download_input", {"task_id": 42})
+    if isinstance(linked, tuple):  # Newer SDK returns (content, structuredContent).
+        linked = linked[0]
+    resource = next(item for item in linked if item.type == "resource_link")
+    contents = await on.read_resource(resource.uri)
+    raw = next(iter(contents)).content
+    assert isinstance(raw, bytes)
+    expected = json.loads(next(item.text for item in linked if item.type == "text"))
+    assert hashlib.sha256(raw).hexdigest() == expected["sha256"]
+    with ZipFile(BytesIO(raw)) as z:
+        assert "research.zip" in z.namelist()
+
+
+def test_file_reference_restrictions_and_binary_download(monkeypatch):
+    from urllib.request import HTTPRedirectHandler
+
+    for url in [
+        "http://files.oaiusercontent.com/x",
+        "https://127.0.0.1/x",
+        "https://host.docker.internal/x",
+        "https://files.oaiusercontent.com.attacker.invalid/x",
+        "https://user:password@files.oaiusercontent.com/x",
+    ]:
+        with pytest.raises(ValueError, match="temporary HTTPS"):
+            dot._download_file(dot.OpenAIFile(download_url=url, file_id="file-1"))
+    body = make_zip({"README.md": "Ready", "image.bin": b"\x00\xff"})
+
+    class Opener:
+        def open(self, req, timeout):
+            assert req.get_header("Authorization") is None
+            assert timeout == 30
+            return BytesIO(body)
+
+    def build(handler):
+        assert issubclass(handler, HTTPRedirectHandler)
+        assert (
+            handler().redirect_request(None, None, 302, "", {}, "https://elsewhere.invalid") is None
+        )
+        return Opener()
+
+    monkeypatch.setattr("urllib.request.build_opener", build)
+    assert dot._download_file(result_file()) == body
+    monkeypatch.setattr(dot, "MAX_ZIP", 10)
+    with pytest.raises(ValueError, match="10 MiB"):
+        dot._download_file(result_file())
 
 
 def test_request_restricts_target_and_redacts_secret(monkeypatch):

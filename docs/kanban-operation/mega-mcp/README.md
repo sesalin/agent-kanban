@@ -18,7 +18,7 @@ Reutiliza el contenedor `mega-mcp` y el túnel OpenAI existentes en WSL.
 
 Se partió de la imagen que estaba ejecutando MegaMCP, guardada como
 `mega-mcp-dot-base:c291a337ed51`. Se añadió únicamente el módulo y el registro
-HTTP. Imagen activa: `mega-mcp-dot-bridge:20261119`.
+HTTP. Imagen activa: `mega-mcp-dot-bridge:20261119-workspace`.
 
 `/mnt/c/_mcp/mega-mcp/docker-compose.override.yml` agrega la imagen y el archivo
 privado de variables. No contiene el token. Los valores efectivos de Compose
@@ -57,12 +57,26 @@ override. No reconstruyas ni elimines el túnel para corregir un catálogo en ca
 
 ## Verificación
 
-- Cinco pruebas del puente: intercambio completo con Kanban simulado, permisos/rutas, hashes y límites, registro optativo, destino fijo y protección del token ante errores/redirecciones.
+- Cinco pruebas del puente: ZIP completo desde/hacia workspace, permisos/rutas, binarios, límites, referencia nativa de archivo, recurso MCP, reintentos y protección del token.
 - Doce pruebas HTTP existentes de MegaMCP correctas.
-- Imagen validada con el SDK real 1.12.4: 35 herramientas, de las cuales 11 son de Dot.
+- Imagen validada con el SDK real 1.12.4: 34 herramientas, de las cuales 10 son de Dot.
 - En producción, initialize/listado/llamadas MCP a `factory_dot_status` y `factory_dot_list_tasks` correctas. Identidad `dot`, proyecto 1 y cola propia vacía.
 - No se creó ni reclamó trabajo real en estas comprobaciones. Dot también confirmó el acceso desde su propio chat. Falta una entrega de landing productiva realizada por Dot en su turno.
 
 El SDK antiguo requiere anotaciones de parámetros resueltas al registrar las
 herramientas. El módulo evita anotaciones diferidas; no se actualizó el SDK ni
 se agregaron dependencias para resolver esa compatibilidad.
+
+## Corrección: workspace de Dot
+
+Dot desarrolla y prueba en su propio workspace. El servidor solo entrega la
+entrada y guarda el ZIP final, sin desarrollo remoto archivo por archivo.
+Se sustituyeron tres herramientas de archivos preparados por descarga binaria
+y subida de archivo nativo; consulta el [contrato vigente](dot.md). No se
+modificaron horarios, roles, Supabase ni las ramas de Codex y Bacha para este
+ajuste. El túnel y el dashboard conservan su configuración anterior.
+
+El SDK 1.12.4 no propaga _meta de descriptores desde FastMCP; se usa su registro
+de list_tools de bajo nivel para añadir openai/fileParams únicamente al tool
+de subida, conservando el resto del catálogo. El recurso ZIP se registra con
+el mecanismo de recursos del mismo servidor. No se añadieron dependencias.

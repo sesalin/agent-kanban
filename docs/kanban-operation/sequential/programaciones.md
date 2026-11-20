@@ -27,7 +27,7 @@ ya terminó. El cron de n8n no inicia las sesiones externas de los agentes.
 «Carga las instrucciones de dot.md y programa su ejecución diaria a las
 16:00, America/Mexico_City, con obsidian-mcp habilitado. Confirma el horario
 y que la ejecución programada dispone de las herramientas factory_dot_*.
-Trabaja solo tus landings del proyecto 1; publica el ZIP y envía a revisión.
+Trabaja solo tus landings del proyecto 1, desarrollando y probando en tu propio workspace. Descarga la entrada con factory_dot_download_input; empaqueta allí el resultado y súbelo con factory_dot_upload_result usando el parámetro de archivo nativo, y envía a revisión. No delegues la landing a Codex ni desarrolles en la carpeta del MCP.
 Tras entregar continúa con tu siguiente tarjeta propia dentro de la ventana.»
 
 [Prompt completo de Dot](dot.md).

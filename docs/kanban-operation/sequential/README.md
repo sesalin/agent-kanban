@@ -207,3 +207,9 @@ esas tarjetas y sus entregas. No se crearon pilotos ni se trabajó por los agent
 usando [los mensajes listos para copiar](programaciones.md), y pasar a Brio
 su límite de investigación. Codex conserva su temporizador ya habilitado.
 Un acceso correcto no programa por sí mismo al agente.
+
+El flujo de archivos de Dot se corrigió: descarga ZIP por MCP, desarrolla y
+prueba en su propio workspace y sube el ZIP terminado con archivo nativo.
+El MCP no es su workspace ni ejecuta el desarrollo. Consulta dot.md antes
+de cargar el prompt; las herramientas antiguas de escritura individual ya
+no están expuestas. El horario de las 16:00 y el reparto permanecen vigentes.

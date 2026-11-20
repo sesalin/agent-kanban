@@ -127,3 +127,27 @@ simulados: no enviaron mensajes ni cambiaron la base. El cron productivo 220
 corrió después del despliegue con éxito y factory_runtime sin last_error.
 La nueva función de ramas permite service_role y rechaza anon; la base
 modificada fue exclusivamente radars-n8n / uobeshcvmtawjxibciuy.
+
+## Corrección del contrato de Dot: workspace propio
+
+El primer puente promovía escribir archivos individuales y empaquetar en el
+host del MCP. El operador corrigió el requisito: Dot debe descargar la
+entrada, realizar análisis/desarrollo/pruebas en su propio workspace y subir
+el ZIP terminado. Se retiraron esas herramientas de escritura y se añadieron
+factory_dot_download_input (recurso binario MCP) y factory_dot_upload_result
+(archivo nativo con openai/fileParams). El servidor conserva los bytes de
+la entrega, sin ejecutar ni reconstruir el proyecto. Codex no participa en
+el desarrollo de Dot. Horarios, asignaciones y coordinación permanecen iguales.
+
+Cinco pruebas del puente verificaron el contrato corregido, incluidas rutas,
+permisos, binarios, hashes, reintentos, schema y metadata del archivo nativo.
+Se comprobó también el intercambio en el SDK 1.12.4 real de la imagen sin
+red ni secretos productivos. La imagen derivada conserva el dashboard anterior.
+
+Falta validar desde el cliente de Dot el materializado real del recurso en
+su workspace y la conversión de su archivo al parámetro nativo. Refrescar el
+catálogo es necesario; no se debe declarar el flujo completo validado por
+Dot basándose únicamente en la prueba del servidor. Si el cliente no admite
+el recurso binario o la referencia de archivo, documentar el bloqueo exacto
+antes de cambiar de transporte. No se crearon pilotos ni entregables reales
+en nombre del agente.
