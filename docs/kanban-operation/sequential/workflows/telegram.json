@@ -3,7 +3,7 @@
   "nodes": [
     {
       "id": "13184297-2cf7-466b-aa79-6919585be9c8",
-      "name": "Informes pendientes, 21:00–22:00",
+      "name": "Informes pendientes, 19:30–22:00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -15,7 +15,11 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 */5 21 * * *"
+              "expression": "0 30-59/5 19 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 */5 20-21 * * *"
             },
             {
               "field": "cronExpression",
@@ -113,17 +117,6 @@
     }
   ],
   "connections": {
-    "Informes pendientes, 21:00–22:00": {
-      "main": [
-        [
-          {
-            "node": "Leer informe pendiente",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Leer informe pendiente": {
       "main": [
         [
@@ -145,6 +138,17 @@
           }
         ]
       ]
+    },
+    "Informes pendientes, 19:30–22:00": {
+      "main": [
+        [
+          {
+            "node": "Leer informe pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -156,5 +160,7 @@
     "executionTimeout": 120,
     "errorWorkflow": "WIL1go2TjyOL1s68"
   },
-  "active": false
+  "active": false,
+  "tags": [],
+  "description": "Desde las 19:30 consulta el informe pendiente y lo entrega por Telegram; confirma message_id y conserva reintentos hasta las 22:00."
 }

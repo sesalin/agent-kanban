@@ -1,7 +1,7 @@
 # Brio — investigación por horario
 
 Programa una ejecución diaria a las **12:30**, zona **America/Mexico_City**.
-Ventana para reclamar: 12:30–14:59. Deja de iniciar trabajos a las 14:45 y
+Ventana para reclamar: 12:30–14:59. Deja de iniciar trabajos a las 14:15 y
 procura terminar la sesión antes de las 15:00, cuando comienza Bacha. Si una
 investigación necesita más tiempo, conserva su reclamo y heartbeat; el sistema
 bloqueará nuevos reclamos del otro Muse mientras haya trabajo en curso.
@@ -41,3 +41,16 @@ Carga estas instrucciones y tu credencial en el Muse Brio. Crea allí la tarea
 diaria a las 12:30 con este mensaje: «Ejecuta tu ciclo de investigación del
 Kanban, proyecto 1, según las instrucciones de Brio del pipeline secuencial».
 El arranque de Muse se configura en su propia plataforma; n8n no lo inicia.
+
+## Acumulado y límite de investigación
+
+El acumulado no obliga a terminar todas las tarjetas en un día. Mantén el
+turno de las 12:30 y no reclames otra a partir de las 14:15. Presupuesta unos
+30 minutos por tarjeta; si una fuente tiene captcha, exige permisos o no
+responde, registra el intento y el dato no verificado, sintetiza lo que sí
+obtuviste y entrega los tres archivos requeridos con sus limitaciones. No
+inviertas horas esperando una descarga. Reserva hasta las 14:45 para entregar
+la tarjeta activa y liberar Muse antes de Bacha a las 15:00. Las restantes
+quedan ready para el día siguiente; no crees duplicados ni cambies estados
+para aparentar que terminaste. Si un fallo impide entregar, documenta el
+bloqueo y avisa: el servidor no liberará el reclamo silenciosamente.

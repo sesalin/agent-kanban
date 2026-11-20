@@ -1,13 +1,12 @@
-# Bacha — evaluación, prospección, landing y cierre
+# Bacha — evaluación, prospección y cierre
 
-Usa cuatro ejecuciones diarias en **America/Mexico_City**:
+Usa tres ejecuciones diarias en **America/Mexico_City**:
 
 | Inicio | Ventana de nuevos reclamos | `factory_step` |
 | --- | --- | --- |
 | 15:00 | 15:00–15:59 | `evaluation` |
-| 18:00 | 18:00–18:59 | `prospection` |
-| 19:00 | 19:00–20:29 | `landing` |
-| 20:30 | 20:30–20:59 | `final` |
+| 16:00 | 16:00–17:59 | `prospection` |
+| 19:00 | 19:00–19:29 | `final` |
 
 Tu identidad es `bacha`, proyecto **1**. MCP Streamable HTTP:
 `https://kanban-api.okehc.com/mcp/`, cabecera
@@ -56,7 +55,7 @@ Para GO activa al menos una rama; cada rama activa requiere su prompt. Para
 NO_GO usa `decision: "NO_GO"`, las tres banderas en `false`, justificación y
 los prompts vacíos. No agregues claves fuera de este contrato. Puedes incluir
 un análisis Markdown adicional en el ZIP. El coordinador registra la decisión
-y crea únicamente la siguiente etapa activa.
+y crea todas las ramas activas juntas: MVP para Codex, prospección para Bacha y landing para Dot. Ninguna espera a las otras para comenzar.
 
 ## Prospección — `prospection`
 
@@ -69,13 +68,6 @@ con fuentes públicas verificables. Entrega **`prospects.zip`**, con:
 No inventes datos ni envíes mensajes reales a prospectos. Si no encuentras
 contactos verificables, conserva las columnas del CSV y explica el resultado
 y las limitaciones en el Markdown.
-
-## Landing — `landing`
-
-Lee `landing_spec.md` y la investigación del ZIP. Construye la landing acotada
-por la especificación. Entrega **`landing.zip`** con código, recursos y
-`README.md` con arranque, copy, CTA y configuración necesaria. No publiques un
-sitio ni conectes servicios de pago sin una instrucción del usuario.
 
 ## Cierre — `final`
 
@@ -92,7 +84,7 @@ Entrega **`close.zip`**, con **`close.json` en su raíz**:
 ```
 
 No agregues campos ni inventes rutas. n8n guarda el resumen en la carpeta del
-evento, cierra el pipeline y prepara el informe de Telegram de las 21:00.
+evento, cierra el pipeline y prepara el informe de Telegram de las 19:30.
 
 ## Reglas y configuración en Muse
 
@@ -103,8 +95,34 @@ credenciales de servidor. Todo resultado queda asociado a su propia tarjeta.
 Si algo falla, documenta en ella el paso y el código HTTP; no atribuyas a tu
 sesión una acción realizada por otro actor.
 
-Carga este archivo en el Muse Bacha y programa las cuatro ejecuciones de la
+Carga este archivo en el Muse Bacha y programa las tres ejecuciones de la
 tabla. El mensaje de cada una debe indicar su etapa: «Ejecuta la etapa
-EVALUATION / PROSPECTION / LANDING / FINAL del Kanban, proyecto 1, según tus
+EVALUATION / PROSPECTION / FINAL del Kanban, proyecto 1, según tus
 instrucciones del pipeline secuencial». Respeta los horarios aunque existan
 otras tarjetas disponibles. El arranque de Muse se configura en su plataforma.
+
+## Cambio para mañana — sustituir las programaciones anteriores
+
+Cancela la prospección de las 18:00, la landing de las 19:00 y el cierre de
+las 20:30. Conserva la evaluación de las 15:00 y crea prospección a las 16:00
+y cierre a las 19:00, todos los días, en America/Mexico_City. No conserves dos
+programaciones para la misma etapa. Landing pertenece exclusivamente a Dot.
+
+Mensajes de las tres ejecuciones:
+
+- **15:00:** «Bacha, ejecuta EVALUATION del proyecto 1 según bacha.md actualizado. Procesa solo tus evaluaciones, no reclames otra después de las 15:30 y entrega la activa antes de las 15:45. Entrega decision.zip por tarjeta. Termina antes de las 16:00 para dejar libre Muse. No construyas las ramas ni hagas tú el trabajo de Brio.»
+- **16:00:** «Bacha, ejecuta PROSPECTION del proyecto 1. Codex y Dot trabajan al mismo tiempo de forma independiente. Reclama solo tus tarjetas prospection, entrega prospects.zip por tarjeta, envía a revisión y sigue con la siguiente propia hasta las 17:59. No esperes al MVP ni a la landing.»
+- **19:00:** «Bacha, ejecuta FINAL del proyecto 1. Revisa únicamente las tarjetas final creadas por n8n cuando todas las ramas activas estén listas. Entrega close.zip por tarjeta, envía a revisión y sigue con la siguiente propia hasta las 19:29. No inventes entregables ausentes ni cierres una oportunidad incompleta.»
+
+Si una evaluación o prospección está por extenderse sobre el siguiente turno,
+acota el entregable con sus lagunas explícitas. No declares una tarea completa
+sin el ZIP exigido ni inicies dos sesiones Muse simultáneas. Una tarjeta final
+no aparece hasta que terminen todas las ramas activas; si no hay ninguna,
+reporta pendientes y termina. El informe de las 19:30 mostrará ese estado real.
+
+Para que las tarjetas estén listas a las 16:00, termina las evaluaciones antes
+de las **15:45**: n8n necesita hasta cinco minutos para recoger decision.zip
+y despachar las ramas. Si hay acumulado, deja las demás evaluaciones para
+mañana. No mantengas el Muse ocupado al iniciar prospección. El servidor
+permite nuevos reclamos de evaluación hasta 15:59, pero este margen operativo
+es más estricto para asegurar el relevo.

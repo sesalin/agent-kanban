@@ -13,7 +13,7 @@ Zona horaria de todos los horarios: **America/Mexico_City**.
 - Consulta de n8n cada cinco minutos sin LLM, sin despertar agentes y sin callbacks de entrega.
 - Telegram validado mediante un mensaje real al chat `7946431920` con la credencial `Telegram Cheko`.
 - Temporizador de usuario de Codex instalado y habilitado en WSL. El CLI tiene sesión ChatGPT. Su comprobación real de cola vacía no inició el modelo.
-- **Pendiente manual:** cargar las instrucciones y programaciones de Brio y Bacha en sus plataformas Muse. Esta sesión no dispone de herramientas para crear esas automatizaciones externas.
+- **Pendiente manual:** actualizar instrucciones/horarios de Bacha y programar Dot; pasar a Brio el límite de investigación. El operador ya había programado Brio/Bacha. Esta sesión no dispone de herramientas para editar esas programaciones externas.
 - Hay 17 ZIP históricos ausentes entre 26 registros marcados `ready`; consulta [incidencias.md](incidencias.md). No se crean tarjetas de entradas ausentes.
 
 ## Flujo y estados
@@ -28,23 +28,27 @@ flowchart TD
     F --> G{GO o NO_GO}
     G -->|NO_GO| H[REJECTED con justificación]
     G -->|GO| I[Codex: MVP si está habilitado]
-    I --> J[Bacha: prospección si está habilitada]
-    J --> K[Bacha: landing si está habilitada]
-    K --> L[Bacha: close.zip]
+    G -->|GO| J[Bacha: prospección si está habilitada]
+    G -->|GO| K[Dot: landing si está habilitada]
+    I --> Z[Todas las ramas activas DONE]
+    J --> Z
+    K --> Z
+    Z --> L[Bacha: close.zip]
     L --> M[n8n: DONE e informe persistido]
-    H --> N[Telegram a las 21:00]
+    H --> N[Telegram desde las 19:30]
     M --> N
 ```
 
 Las ramas desactivadas se omiten. Todas las actividades de los workers,
-incluidas evaluación y revisión final, tienen tarjeta. Solo se crea la
-siguiente etapa habilitada de cada oportunidad. Varios eventos pueden estar
-en cola; no se habilita todo el trabajo de un evento en paralelo.
+incluidas evaluación y revisión final, tienen tarjeta. Investigación y evaluación se suceden; tras GO se crean juntas todas las
+ramas activas. Varios eventos pueden estar en cola. Cada constructor sigue
+con su siguiente tarjeta propia dentro de su ventana.
 
 `opportunity_pipelines.stage` conserva los estados existentes: `RESEARCH`,
 `EVALUATING`, `BUILDING`, `FINAL_REVIEW`, `DONE`, `REJECTED`. El modo nuevo se
-identifica con `factory_mode=sequential`. Durante BUILDING, el siguiente paso
-es la primera rama activa no terminada en el orden MVP → prospección → landing.
+identifica con `factory_mode=sequential`. Durante BUILDING se concilian todas las ramas activas pendientes, sin
+exigir el orden MVP → prospección → landing. El nombre del modo se conserva
+por compatibilidad con las tarjetas y claves existentes.
 Se añadieron `evaluation_task_id`, `final_task_id` y `last_error`.
 
 La hora autoriza un nuevo reclamo; no acredita una entrega. Si una etapa no
@@ -70,10 +74,10 @@ el trabajo reclamado se prolongó después de la ventana.
 | 12:30 | Investigación | Brio |
 | 15:00 | Evaluación GO/NO_GO | Bacha |
 | 16:00 | MVP | Codex |
-| 18:00 | Prospección | Bacha |
-| 19:00 | Landing | Bacha |
-| 20:30 | Revisión final | Bacha |
-| 21:00 | Informe de cierres y pendientes | n8n / Telegram |
+| 16:00 | Prospección, en paralelo con MVP y landing | Bacha |
+| 16:00 | Landing, en paralelo con MVP y prospección | Dot |
+| 19:00 | Revisión final de oportunidades completas | Bacha |
+| 19:30 | Informe de cierres y pendientes | n8n / Telegram |
 
 n8n concilia cada cinco minutos de 12:20 a 22:00. Admite nuevas oportunidades
 con ZIP entre 12:20 y 14:59; los resultados nuevos posteriores quedan para
@@ -84,7 +88,8 @@ su cola cada cinco minutos de 16:00 a 17:55, sin modelo si está vacía.
 ## Archivos para entregar a los agentes
 
 - [Brio](brio.md): instrucciones y programación diaria.
-- [Bacha](bacha.md): cuatro horarios y contratos de evaluación, prospección, landing y cierre.
+- [Bacha](bacha.md): tres horarios y contratos de evaluación, prospección y cierre.
+- [Dot](dot.md): prompt, programación a las 16:00 y herramientas de archivos mediante obsidian-mcp.
 - [Codex](codex.md): construcción local, temporizador y recuperación.
 - [n8n](n8n.md): reglas mecánicas, conexiones y workflows.
 - [Radar Gobierno NL](radar-gobierno-nl.md).
@@ -92,7 +97,9 @@ su cola cada cinco minutos de 16:00 a 17:55, sin modelo si está vacía.
 - [Radar Regulación Federal](radar-regulacion-federal.md).
 - [Radar Competencia ServicePlace](radar-competencia-serviceplace.md).
 
-Cada agente recibe exclusivamente su Bearer de Kanban. Las claves de servidor
+Bacha y Brio reciben exclusivamente su propio Bearer de Kanban. Dot utiliza
+obsidian-mcp, donde el Bearer se guarda en el servidor; no necesita otro token
+en su chat. Las claves de servidor
 no están en esta carpeta. Variables de Bacha/Brio: archivo privado
 `~/.config/agent-kanban/kk-agents.env`, campos `BACHA_KANBAN_TOKEN` y
 `BRIO_KANBAN_TOKEN`. Codex usa `codex-factory.env`; n8n mantiene su propia
@@ -137,14 +144,14 @@ operador sobre esa tarjeta/archivo; no recrees silenciosamente la oportunidad.
 Restauración del montaje:
 
 1. Restaura el repositorio, los volúmenes de Kanban/PostgreSQL y la raíz WSL de paquetes. Los ZIP no viven dentro de la base; respáldalos también.
-2. En la base **radars-n8n**, aplica en orden `deploy/factory/supabase.sql`, `transitions.sql` y `sequential.sql` si no restauraste el esquema completo. No lo apliques a otro proyecto.
+2. En la base **radars-n8n**, aplica en orden `deploy/factory/supabase.sql`, `transitions.sql`, `sequential.sql` y `parallel.sql` si no restauraste el esquema completo. No lo apliques a otro proyecto.
 3. Recupera fuera de Git los archivos privados `kk-compose.env`, `kk-agents.env`, `n8n-radares.env`, `factory.env` y `codex-factory.env` de `~/.config/agent-kanban/`.
 4. El override local `docker-compose.cloudflare.yml` conserva PostgreSQL 17, los puertos de localhost/LAN y la red del túnel. Agrega al app `env_file: [/home/cheko/.config/agent-kanban/factory.env]` y el montaje `/mnt/c/_mcp/muse-packages:/muse-packages`. `factory.env` define `FACTORY_SUPABASE_URL` y `FACTORY_SUPABASE_SECRET_KEY`; la URL debe ser la base de radares indicada arriba. No publiques sus valores.
 5. Levanta el app con la composición y env-file existentes. Los montajes antiguos `workspace_tasks` pueden conservarse, pero el temporizador secuencial de Codex consulta Kanban y no depende de esos avisos Markdown.
 6. Restaura el intermediario con `deploy/bacha-rest/wrangler.jsonc` y sus secretos privados. `wrangler deploy --keep-vars` conserva valores ya configurados; no recrea secretos perdidos.
 7. Importa los tres JSON de `workflows/`, selecciona las credenciales correspondientes y fija `America/Mexico_City`. Publica primero el registrador de errores; vincúlalo por su nuevo ID en los otros dos antes de publicarlos.
 8. Copia `deploy/factory/kanban-codex.service` y `.timer` a `~/.config/systemd/user/`, conserva el archivo privado de Codex, ejecuta `systemctl --user daemon-reload` y `systemctl --user enable --now kanban-codex.timer`. Ajusta rutas de usuario si restauras en otro host y confirma `codex login status`.
-9. Carga los prompts y horarios de Brio/Bacha en sus Muse. No importes simultáneamente los workflows históricos por eventos.
+9. Carga los prompts y horarios de Brio/Bacha en sus Muse y Dot en su plataforma. Restaura también el puente descrito en `../mega-mcp/README.md`. No importes simultáneamente los workflows históricos por eventos.
 
 Si Telegram acepta un mensaje y falla la confirmación en DB, puede repetirse
 el informe en un reintento. Verifica el chat y la ejecución antes de reenviarlo.
@@ -182,3 +189,21 @@ de cambios y exportaciones no encontró valores de secretos privados.
 Los cron de n8n y el temporizador local están activos. Falta comprobar una
 jornada real con Brio y Bacha después de cargar sus instrucciones y horarios;
 no se ejecutó investigación ni construcción en lugar de esos agentes.
+
+
+## Actualización del 19 de noviembre: tres constructores
+
+Dot confirmó personalmente su acceso por obsidian-mcp y esta sesión repitió
+status y cola desde ese mismo plugin. Landing cambia de Bacha a Dot; las tres
+ramas se crean tras GO y pueden reclamarse de 16:00 a 17:59. Bacha conserva
+evaluación 15:00, prospección 16:00 y cierre 19:00. Telegram comienza 19:30,
+con reintentos hasta 22:00. La conciliación sigue cada cinco minutos sin LLM.
+
+Al inspeccionar producción había siete oportunidades en EVALUATING y tres
+en RESEARCH; ninguna tenía tarjeta MVP, prospección o landing. Se conservan
+esas tarjetas y sus entregas. No se crearon pilotos ni se trabajó por los agentes.
+
+**Acción manual pendiente:** actualizar los horarios externos de Bacha y Dot
+usando [los mensajes listos para copiar](programaciones.md), y pasar a Brio
+su límite de investigación. Codex conserva su temporizador ya habilitado.
+Un acceso correcto no programa por sí mismo al agente.

@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 const publicHost = "kanban-api.okehc.com";
 const origin = "https://kk.okehc.com";
-const agents = ["BACHA", "BRIO", "N8N_RADARES", "CODEX", "INSTINCT", "NOD"];
+const agents = ["BACHA", "BRIO", "N8N_RADARES", "CODEX", "INSTINCT", "NOD", "DOT"];
 
 function digest(value) {
   return createHash("sha256").update(value).digest();
@@ -13,7 +13,7 @@ function allowed(method, path, agent) {
     if (method === "GET") return /^\/api\/tasks\/[0-9]+$/.test(path);
     return method === "POST" && (path === "/api/tasks/dispatch" || ["/api/factory/reconcile", "/api/factory/error"].includes(path) || /^\/api\/factory\/reports\/\d{4}-\d{2}-\d{2}\/sent$/.test(path) || /^\/api\/factory\/files\/(?:input|specs|verify|wakeup|release)$/.test(path) || /^\/api\/tasks\/[0-9]+\/review$/.test(path));
   }
-  if (["BRIO", "CODEX", "INSTINCT"].includes(agent)) {
+  if (["BRIO", "CODEX", "INSTINCT", "DOT"].includes(agent)) {
     if (method === "GET") {
       return path === "/api/tasks/available" ||
         /^\/api\/tasks\/[0-9]+(?:\/(?:comments|progress|package\/input))?$/.test(path);

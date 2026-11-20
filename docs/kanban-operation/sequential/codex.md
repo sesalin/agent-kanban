@@ -1,7 +1,7 @@
 # Codex — MVP local en WSL
 
 Identidad: **codex**. Proyecto: **1**. Zona: **America/Mexico_City**.
-Inicio de ventana: **16:00**. Nuevos reclamos permitidos hasta **17:59**.
+Inicio de ventana: **16:00**, al mismo tiempo que prospección (Bacha) y landing (Dot). Nuevos reclamos permitidos hasta **17:59**.
 El temporizador local consulta cada cinco minutos dentro de esa ventana y
 solo inicia el modelo cuando encuentra una tarjeta de MVP secuencial.
 Conserva el modelo ya configurado en el CLI; el lanzador no selecciona otro.
@@ -46,3 +46,13 @@ journalctl --user -u kanban-codex.service --since today
 
 El temporizador no arranca tarde para recuperar una ventana perdida. Si WSL
 estaba apagado, la cola se conserva para la siguiente ventana diaria.
+
+## Corrección del reparto
+
+El temporizador ya está activo: no crees otra programación. Construye solo
+MVP; no esperes a prospección ni a landing y no asumas sus entregables como
+entrada. Las tres ramas reciben la misma investigación y su especificación
+tras GO. El cierre de Bacha empieza a las 19:00 y Telegram sale desde las
+19:30. Procura entregar antes de las 18:45 para que n8n pueda validar el ZIP
+y preparar el cierre. Si no llegas, deja progreso fiel y heartbeat; el sistema
+conservará el pendiente, sin darlo por terminado al llegar la hora.

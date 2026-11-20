@@ -97,6 +97,17 @@ def next_step(p):
     return None
 
 
+def pending_steps(p):
+    if p["stage"] == "BUILDING":
+        return [
+            branch
+            for branch in ("mvp", "prospection", "landing")
+            if p["run_" + branch] and p[branch + "_status"] != "DONE"
+        ]
+    step = next_step(p)
+    return [step] if step else []
+
+
 def task_column(step):
     return "brio_task_id" if step == "research" else step + "_task_id"
 
@@ -210,9 +221,11 @@ class Coordinator:
         return p
 
     async def advance(self, p):
-        step = next_step(p)
-        if step is None:
-            return p
+        for step in pending_steps(p):
+            p = await self.advance_step(p, step)
+        return p
+
+    async def advance_step(self, p, step):
         task_id = p.get(task_column(step))
         if not task_id:
             return await self.prepare_task(p, step)
@@ -275,9 +288,9 @@ class Coordinator:
             p_task_id=str(task.id),
             p_payload=payload,
         )
-        following = next_step(p)
-        if following:
-            p = await self.prepare_task(p, following)
+        for following in pending_steps(p):
+            if not p.get(task_column(following)):
+                p = await self.prepare_task(p, following)
         return p
 
     async def pipelines(self, active_only):
@@ -354,7 +367,7 @@ class Coordinator:
                 "updated_at": now.isoformat(),
             },
         )
-        if minute >= 1260:
+        if minute >= 1170:
             date = now.date().isoformat()
             existing = await self.api(
                 "GET", "factory_daily_reports", params={"report_date": "eq." + date}
@@ -414,7 +427,7 @@ class Coordinator:
                 "factory_daily_reports",
                 params={"sent_at": "is.null", "order": "report_date.asc", "limit": "1"},
             )
-            if minute >= 1260
+            if minute >= 1170
             else []
         )
         return {

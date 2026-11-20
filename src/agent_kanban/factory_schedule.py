@@ -14,16 +14,16 @@ SLOTS = {
     "research": (750, 900),
     "evaluation": (900, 960),
     "mvp": (960, 1080),
-    "prospection": (1080, 1140),
-    "landing": (1140, 1230),
-    "final": (1230, 1260),
+    "prospection": (960, 1080),
+    "landing": (960, 1080),
+    "final": (1140, 1170),
 }
 ACTORS = {
     "research": "brio",
     "evaluation": "bacha",
     "mvp": "codex",
     "prospection": "bacha",
-    "landing": "bacha",
+    "landing": "dot",
     "final": "bacha",
 }
 

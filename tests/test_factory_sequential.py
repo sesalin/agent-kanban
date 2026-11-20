@@ -14,7 +14,7 @@ from sqlmodel import select
 
 from agent_kanban import services
 from agent_kanban.config import get_settings
-from agent_kanban.factory_coordinator import Coordinator, next_step
+from agent_kanban.factory_coordinator import Coordinator, next_step, pending_steps
 from agent_kanban.factory_schedule import ZONE, slot_open
 from agent_kanban.models import AgentProject, Project, Task, TaskStatus
 from agent_kanban.routes.task_packages import package_paths
@@ -48,6 +48,7 @@ async def factory_pg(db_url):
         + Path("deploy/factory/transitions.sql").read_text()
     )
     await conn.execute(Path("deploy/factory/sequential.sql").read_text())
+    await conn.execute(Path("deploy/factory/parallel.sql").read_text())
     await conn.execute(
         "TRUNCATE opportunity_pipelines,radar_gobierno_nl,radar_compras_publicas,radar_regulacion_federal,factory_daily_reports,factory_runtime CASCADE"
     )
@@ -69,7 +70,7 @@ async def make_coordinator(session, monkeypatch, tmp_path, factory_pg):
                 role="orchestrator" if a in ("n8n-radares", "bacha") else "worker",
                 can_claim=True,
             )
-            for a in ("n8n-radares", "brio", "bacha", "codex")
+            for a in ("n8n-radares", "brio", "bacha", "codex", "dot")
         ]
     )
     await session.commit()
@@ -151,17 +152,39 @@ async def test_sequential_cycle_cards_zip_and_retry(session, monkeypatch, tmp_pa
         for step, actor in [
             ("research", "brio"),
             ("evaluation", "bacha"),
-            ("mvp", "codex"),
+            ("landing", "dot"),
             ("prospection", "bacha"),
-            ("landing", "bacha"),
+            ("mvp", "codex"),
             ("final", "bacha"),
         ]:
-            assert next_step(p) == step
+            assert step in pending_steps(p)
+            if step == "landing":
+                assert all(
+                    p.get(branch + "_task_id") for branch in ("mvp", "prospection", "landing")
+                )
+                assert p["final_task_id"] is None
+                assert (await c.advance(p))["landing_task_id"] == p["landing_task_id"]
+                # All three can hold their claims together, before any branch delivers.
+                with patch("agent_kanban.factory_schedule.slot_open", return_value=True):
+                    for branch, owner in (
+                        ("mvp", "codex"),
+                        ("prospection", "bacha"),
+                        ("landing", "dot"),
+                    ):
+                        claim = await services.claim_task(
+                            session, int(p[branch + "_task_id"]), owner, enforce_grant=True
+                        )
+                        assert claim.ok
             col = "brio_task_id" if step == "research" else step + "_task_id"
             task = await session.get(Task, int(p[col]), populate_existing=True)
             ids.append(task.id)
-            with patch("agent_kanban.factory_schedule.slot_open", return_value=True):
-                assert (await services.claim_task(session, task.id, actor, enforce_grant=True)).ok
+            await session.refresh(task)
+            if task.status != TaskStatus.IN_PROGRESS:
+                with patch("agent_kanban.factory_schedule.slot_open", return_value=True):
+                    assert (
+                        await services.claim_task(session, task.id, actor, enforce_grant=True)
+                    ).ok
+            assert task.assigned_to == actor and task.claimed_by == actor
             source, result = package_paths(task)
             assert source.is_file()
             result.write_bytes(archive(files[step]))
@@ -175,7 +198,7 @@ async def test_sequential_cycle_cards_zip_and_retry(session, monkeypatch, tmp_pa
         assert next_step(p) is None
         assert (await c.advance(p))["stage"] == "DONE"
         count = (await session.execute(select(Task.id))).scalars().all()
-        assert count == ids
+        assert set(count) == set(ids) and len(count) == 6
         assert (
             tmp_path / p["event_id"] / "07_release/resumen_ejecutivo.md"
         ).read_text() == "Verified complete"
@@ -286,9 +309,9 @@ async def test_muse_exclusion_atomic_and_window(session, db_url, monkeypatch):
         ("research", 12 * 60 + 30, 15 * 60),
         ("evaluation", 15 * 60, 16 * 60),
         ("mvp", 16 * 60, 18 * 60),
-        ("prospection", 18 * 60, 19 * 60),
-        ("landing", 19 * 60, 20 * 60 + 30),
-        ("final", 20 * 60 + 30, 21 * 60),
+        ("prospection", 16 * 60, 18 * 60),
+        ("landing", 16 * 60, 18 * 60),
+        ("final", 19 * 60, 19 * 60 + 30),
     ]:
 
         def at(minute):
@@ -349,7 +372,7 @@ async def test_daily_report_persists_once_and_outside_window_does_nothing(
         ] == "outside_window"
         assert requests == []
         for _ in range(2):
-            response = await c.tick(datetime(2026, 11, 18, 21, 0, tzinfo=ZONE))
+            response = await c.tick(datetime(2026, 11, 18, 19, 30, tzinfo=ZONE))
             assert response["report"]["report_date"] == "2026-11-18"
         assert len(reports) == 1
         assert "RESEARCH: 0" in reports[0]["message"]

@@ -76,3 +76,54 @@ aprobación rechazada por el CLI se registra en sus logs y requiere revisión.
 La coordinación es determinista; la calidad de investigación y construcción
 la revisan los agentes según sus instrucciones. La validación automática de
 ZIP y JSON no sustituye una revisión semántica de los entregables.
+
+## Cambio del 19-11-2026 para la jornada del 20-11
+
+- Se detectó que las ramas se despachaban en cadena, aunque ya existían tres
+  posibles constructores. Se corrigieron coordinador, funciones SQL y horarios:
+  MVP/Codex, prospección/Bacha y landing/Dot se habilitan juntas tras GO.
+- No había construcciones creadas que reasignar: siete eventos estaban en
+  EVALUATING (tarjetas 22–28 para Bacha) y tres en RESEARCH (19–21 para Brio).
+  Las investigaciones 12–18 permanecen done. Se conservaron IDs y resultados.
+- Dot tiene lectura/reclamo como worker del proyecto 1. Su puente de archivos
+  limita lectura a la entrada de su tarjeta y escritura a su carpeta de landing;
+  se verificaron rechazo de rutas externas, symlinks y tarjetas ajenas. El ZIP
+  se publica en la misma tarjeta. Dot confirmó personalmente la conexión MCP.
+- El fallo de relevo de Brio es operativo: la investigación se extendió sobre
+  el turno de Bacha. Se ajustaron instrucciones: unas 30 min por tarjeta,
+  sin nuevos reclamos después de 14:15 y objetivo de entrega 14:45. Fuentes
+  inaccesibles se registran como lagunas, sin inventar datos. Un acumulado
+  puede requerir varios días; el horario no garantiza vaciar toda la cola.
+- Bacha debe entregar evaluaciones antes de 15:45 para que la conciliación
+  de cinco minutos prepare las ramas antes de las 16:00. Un resultado tardío
+  puede esperar al siguiente turno si su worker ya terminó por cola vacía.
+- El cierre sigue condicionado a todas las ramas activas DONE. Una entrega
+  ausente o inválida impide cerrar esa oportunidad; el informe de las 19:30
+  muestra estados al corte, no afirma que todos los trabajos terminaron. Un
+  cierre posterior no regenera el informe diario que ya fue enviado.
+- Sigue pendiente cargar las nuevas programaciones externas de Bacha/Dot y
+  comprobar una jornada real. El acceso interactivo de Dot no demuestra aún
+  que su ejecución programada conserve las herramientas del plugin. Si su
+  plataforma no permite tareas programadas con herramientas, el operador
+  deberá iniciar ese turno; no se implementó otro despertador por eventos.
+
+### Validación del cambio
+
+Se verificaron 12 casos de Kanban/coordinador: ciclo completo con las tres
+ramas reclamadas a la vez y entregas fuera de orden, NO_GO, idempotencia,
+permisos SQL, horarios, exclusión Muse, informe desde las 19:30, orquestación
+y API de paquetes. Se usó PostgreSQL temporal y archivos de prueba. No se
+crearon pilotos ni se produjo trabajo por Brio, Bacha, Codex o Dot.
+
+Las 17 comprobaciones de puente/HTTP de MegaMCP pasaron; cubren lectura,
+escritura acotada, ZIP, publicación y revisión. La suite del intermediario
+pasó. El primer intento de pruebas con sockets falló por el sandbox: se
+repitieron solo los casos afectados con acceso al Postgres/socket temporal.
+Hay avisos previos de deprecación de pytest-asyncio/AnyIO; no afectaron resultados.
+
+Los workflows fueron validados, se verificaron conexiones y se publicaron.
+Pruebas n8n 221 y 222 correctas con todos los nodos de red y Telegram
+simulados: no enviaron mensajes ni cambiaron la base. El cron productivo 220
+corrió después del despliegue con éxito y factory_runtime sin last_error.
+La nueva función de ramas permite service_role y rechaza anon; la base
+modificada fue exclusivamente radars-n8n / uobeshcvmtawjxibciuy.

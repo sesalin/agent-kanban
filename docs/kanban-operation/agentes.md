@@ -16,7 +16,7 @@ Las identidades de esta tabla tienen un token emitido en Kanban. La asignación 
 
 La lista indica identidades configuradas. La disponibilidad del proceso de cada agente varía con su host. Los valores de las credenciales se administran en el archivo privado descrito en la [ficha técnica](ficha-tecnica.md).
 
-El contrato de fábrica asigna a n8n la creación y el cierre de tarjetas. La fábrica secuencial usa Brio para investigación, Bacha para evaluación, prospección, landing y cierre, y Codex para MVP. Nod e Instinct quedan fuera de las nuevas asignaciones de fábrica. Su archivo privado es `~/.config/agent-kanban/nod.env`. Consulta la [operación de fábrica](factory/README.md) y los prompts por identidad. Instinct usa el archivo privado `~/.config/agent-kanban/instinct.env`. El intermediario acepta el Bearer propio de Bacha, Brio, Codex e Instinct para consultar su cola y entregar.
+El contrato de fábrica asigna a n8n la creación y el cierre de tarjetas. La fábrica secuencial usa Brio para investigación, Bacha para evaluación, prospección y cierre, Codex para MVP y Dot para landing. Nod e Instinct quedan fuera de las nuevas asignaciones de fábrica. Su archivo privado es `~/.config/agent-kanban/nod.env`. Consulta la [operación de fábrica](factory/README.md) y los prompts por identidad. Instinct usa el archivo privado `~/.config/agent-kanban/instinct.env`. El intermediario acepta el Bearer propio de Bacha, Brio, Codex, Dot e Instinct para consultar su cola y entregar.
 
 ## Qué pasar a cada agente
 
@@ -63,3 +63,17 @@ SQL
 
 
 La operación vigente y los prompts por agente están en [sequential/README.md](sequential/README.md). Los permisos registrados de identidades antiguas se conservan; no significan que reciban trabajo del coordinador nuevo.
+
+
+## Incorporación de Dot a landing
+
+Dot conserva su identidad worker del proyecto 1. Su acceso de un solo Bearer
+por el intermediario se habilitó el 19 de noviembre de 2026. Las variables
+para entregar a Dot están fuera del repositorio, en
+`~/.config/agent-kanban/dot.env`. El [mensaje de validación](sequential/dot-acceso.md)
+comprueba MCP y REST desde su propio canal. La asignación de landing y los
+horarios nuevos aún están pendientes; este acceso no cambia el reparto del
+coordinador.
+
+
+El puente [MegaMCP → Dot](mega-mcp/dot.md) permite usar su token desde el servidor. La validación directa por Bearer y la conexión a través del puente son rutas distintas; no hace falta resolver OAuth del Kanban para usar este puente.

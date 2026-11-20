@@ -4,7 +4,7 @@ import worker from "./worker.mjs";
 
 test("factory workers can access their queue and cannot dispatch tasks", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json([]));
-  for (const agent of ["BRIO", "CODEX", "INSTINCT", "BACHA", "NOD"]) {
+  for (const agent of ["BRIO", "CODEX", "INSTINCT", "BACHA", "NOD", "DOT"]) {
     const env = { [`${agent}_KANBAN_TOKEN`]: "test-worker",
       [`${agent}_CF_ACCESS_CLIENT_ID`]: "test-id", [`${agent}_CF_ACCESS_CLIENT_SECRET`]: "test-secret" };
     const request = (path, method = "GET") => new Request("https://kanban-api.okehc.com" + path,
@@ -125,13 +125,13 @@ test("forwards MCP headers, event streams and empty notification replies", async
 
 test("only n8n may invoke bounded factory file operations", async (t) => {
   const env = {};
-  for (const agent of ["N8N_RADARES", "NOD", "BACHA", "BRIO"]) {
+  for (const agent of ["N8N_RADARES", "NOD", "BACHA", "BRIO", "DOT"]) {
     env[`${agent}_KANBAN_TOKEN`] = agent;
     env[`${agent}_CF_ACCESS_CLIENT_ID`] = "id";
     env[`${agent}_CF_ACCESS_CLIENT_SECRET`] = "secret";
   }
   const upstream = t.mock.method(globalThis, "fetch", async () => Response.json({ event_id: "example" }));
-  for (const agent of ["NOD", "BACHA", "BRIO"]) {
+  for (const agent of ["NOD", "BACHA", "BRIO", "DOT"]) {
     const request = new Request("https://kanban-api.okehc.com/api/factory/files/input", {
       method: "POST", headers: { Authorization: `Bearer ${agent}` }, body: "{}",
     });

@@ -1,0 +1,5 @@
+ARG MEGA_MCP_BASE=mega-mcp-mega-mcp:latest
+FROM ${MEGA_MCP_BASE}
+COPY factory_dot_bridge.py /app/app/mcp/factory_dot_bridge.py
+COPY http_server.py /app/app/mcp/http_server.py
+RUN python -m compileall -q /app/app/mcp/factory_dot_bridge.py /app/app/mcp/http_server.py

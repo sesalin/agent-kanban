@@ -80,5 +80,7 @@
     "executionTimeout": 270,
     "errorWorkflow": "WIL1go2TjyOL1s68"
   },
-  "active": false
+  "active": false,
+  "tags": [],
+  "description": "Cada 5 min de 12:20 a 22:00, valida ZIP y avanza estados en radars-n8n. Tras GO crea MVP para Codex, prospección para Bacha y landing para Dot, sin esperar entre ramas ni usar LLM."
 }

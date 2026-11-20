@@ -6,7 +6,7 @@ No hay nodos de LLM ni mensajes para despertar a los agentes en estos flujos.
 | Workflow | Horario | ID |
 | --- | --- | --- |
 | Conciliar cada 5 minutos | 12:20–22:00, diario | `qrBiN12e9J6bEvoc` |
-| Entregar informe Telegram | Cada cinco minutos de 21:00 a 22:00 | `IDoapKWSS7Lg6eBH` |
+| Entregar informe Telegram | Cada cinco minutos de 19:30 a 22:00 | `IDoapKWSS7Lg6eBH` |
 | Registrar fallos | Error Trigger de los dos anteriores | `WIL1go2TjyOL1s68` |
 
 El coordinador hace POST a
@@ -25,10 +25,10 @@ reciben la clave de servidor. Solo acepta el proyecto `radars-n8n`,
 4. Crea el pipeline secuencial y la tarjeta de investigación. Usa una clave estable `<event_id>:sequential:<paso>` para que los reintentos recuperen la misma tarjeta.
 5. Consulta todos los pipelines secuenciales activos, por páginas. Solo acepta una entrega de su tarjeta, proyecto y actor correctos, en `review` o ya en `done` por un reintento.
 6. Valida el ZIP, sus límites y checksum. Investigación y prospección requieren los archivos indicados en los prompts. Evaluación y cierre requieren JSON con esquema estricto.
-7. Aprueba la tarjeta y avanza la transición en Supabase. Si falta la transición después de aprobar, el siguiente intento puede recoger la tarjeta `done`. Solo crea la siguiente etapa activa: investigación → evaluación → MVP → prospección → landing → cierre.
-8. Las ramas desactivadas quedan `SKIPPED`; NO_GO cierra como `REJECTED`. No se crean todas las ramas en paralelo.
+7. Aprueba la tarjeta y avanza la transición en Supabase. Si falta la transición después de aprobar, el siguiente intento puede recoger la tarjeta `done`. Crea investigación → evaluación; tras GO despacha simultáneamente MVP (Codex), prospección (Bacha) y landing (Dot). Recoge cada rama sin esperar a las otras y crea cierre solo cuando todas las activas están DONE.
+8. Las ramas desactivadas quedan `SKIPPED`; NO_GO cierra como `REJECTED`. Se crean juntas únicamente las ramas activas.
 9. El horario de reclamo se comprueba también en Kanban. Los Muse no pueden reclamar otro trabajo mientras haya uno suyo en progreso en el proyecto 1.
-10. A partir de las 21:00 prepara un informe persistido por fecha. El informe resume estados al corte, cierres recientes y cantidad de incidencias de origen.
+10. A partir de las 19:30 prepara un informe persistido por fecha. El informe resume estados al corte, cierres recientes y cantidad de incidencias de origen.
 
 ## Informe y fallos
 
