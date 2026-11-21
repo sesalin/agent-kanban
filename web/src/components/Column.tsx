@@ -33,6 +33,8 @@ export function Column({ status, tasks, lastProgress, onDrop, onOpen }: Props) {
         flex: "1 1 0",
         minWidth: 230,
         maxWidth: 320,
+        minHeight: 0,
+        overflow: "hidden",
         background: "var(--surface)",
         border: `1px solid ${over ? "var(--accent)" : "var(--border)"}`,
         borderRadius: "var(--radius-lg)",
@@ -49,6 +51,7 @@ export function Column({ status, tasks, lastProgress, onDrop, onOpen }: Props) {
           alignItems: "center",
           justifyContent: "space-between",
           marginBottom: 2,
+          flexShrink: 0,
         }}
       >
         <span className="eyebrow">{t(meta.labelKey)}</span>
@@ -59,14 +62,20 @@ export function Column({ status, tasks, lastProgress, onDrop, onOpen }: Props) {
           {tasks.length}
         </span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div
+        role="region"
+        aria-label={t(meta.labelKey)}
+        tabIndex={0}
+        style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1,
+          minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}
+      >
         {tasks.map((tk) => (
           <div
             key={tk.id}
             draggable
             onDragStart={(e) => e.dataTransfer.setData("text/plain", String(tk.id))}
             onClick={() => onOpen(tk.id)}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "pointer", flexShrink: 0 }}
           >
             <TaskCard task={tk} lastProgressAt={lastProgress[tk.id]} />
           </div>

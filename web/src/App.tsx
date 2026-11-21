@@ -95,9 +95,10 @@ function Shell({
   }
 
   return (
-    <div style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <header
         style={{
+          flexShrink: 0,
           position: "sticky",
           top: 0,
           zIndex: 20,
@@ -165,7 +166,7 @@ function Shell({
           </button>
         </div>
       </header>
-      <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
     </div>
   );
 }

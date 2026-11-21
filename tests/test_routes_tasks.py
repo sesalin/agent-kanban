@@ -55,3 +55,21 @@ async def test_list_tasks_filter_by_status(authed_client):
     r = await authed_client.get("/api/tasks?status=ready")
     assert r.status_code == 200
     assert r.json() == []
+
+
+@pytest.mark.asyncio
+async def test_archived_tasks_are_hidden_without_hiding_new_done_tasks(session, authed_client):
+    from agent_kanban.models import Task, TaskStatus
+    ready = Task(title="Keep ready", status=TaskStatus.READY)
+    completed = Task(title="New delivery", status=TaskStatus.DONE)
+    archived = Task(title="Historical", status=TaskStatus.CANCELLED,
+                    metadata_payload={"board_archived": True, "board_previous_status": "done"})
+    session.add_all([ready, completed, archived])
+    await session.commit()
+    response = await authed_client.get("/api/tasks")
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()} == {ready.id, completed.id}
+    assert (await authed_client.get("/api/tasks?status=cancelled")).json() == []
+    history = await authed_client.get(f"/api/tasks/{archived.id}")
+    assert history.status_code == 200
+    assert history.json()["metadata_payload"]["board_previous_status"] == "done"

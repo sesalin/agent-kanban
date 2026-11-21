@@ -57,13 +57,14 @@ export function Board({ onOpenTask }: { onOpenTask: (id: number) => void }) {
   }
 
   return (
-    <div style={{ padding: "20px 20px 24px", display: "flex", flexDirection: "column", minHeight: "100%" }}>
+    <div style={{ padding: "20px 20px 24px", display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 16,
+          flexShrink: 0,
           gap: 12,
         }}
       >
@@ -80,6 +81,7 @@ export function Board({ onOpenTask }: { onOpenTask: (id: number) => void }) {
           display: "flex",
           gap: 12,
           overflowX: "auto",
+          overflowY: "hidden",
           paddingBottom: 4,
           flex: 1,
           minHeight: 0,

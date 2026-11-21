@@ -4,6 +4,26 @@ Fecha del cambio: 20-11-2026. Zona única: `America/Mexico_City`.
 Proyecto Kanban: **1**. Base de radares autorizada: **radars-n8n**, ID
 `uobeshcvmtawjxibciuy`. PostgreSQL de Kanban y Supabase son bases distintas.
 
+## Limpieza del tablero: 21-11-2026
+
+Por instrucción del operador se archivaron las 56 tarjetas históricas del
+proyecto 1: 35 `done` y 21 `cancelled`. Todas quedaron en `cancelled`, sin
+reclamo y con `metadata_payload.board_archived=true`; se conservan el estado
+anterior en `board_previous_status`, fecha, comentario y evento de auditoría.
+Los listados REST/MCP omiten archivadas; siguen disponibles por ID y conservan
+sus archivos. Las nuevas tarjetas que terminen en `done` sí se mostrarán.
+
+Verificación posterior en el API desplegado: solo **#38 y #40**, ambas `ready`;
+los listados `done` y `cancelled` están vacíos. El tablero ahora ocupa la altura
+de la pantalla y cada columna tiene scroll independiente con encabezado fijo.
+28 tests de tareas/servicios aprobados, build y lint del frontend correctos
+(advertencias existentes); Chromium confirmó altura limitada y scroll
+independiente en dos tamaños de ventana, con datos ficticios.
+
+Respaldo previo de PostgreSQL y registros afectados:
+`/home/cheko/.config/agent-kanban/backups/board-cleanup-20261121-000535/`.
+Imagen previa: `agent-kanban-app:before-board-cleanup`.
+
 Backend Kanban, gateway Cloudflare y puente Dot desplegados el 20-11-2026.
 Los workflows nuevos están publicados y los timers antiguos de polling y
 Evolution están desactivados. Codex fue reanudado por instrucción explícita:

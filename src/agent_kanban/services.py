@@ -153,8 +153,10 @@ async def list_tasks(
 ) -> list[Task]:
     """List tasks. When ``agent`` is given (MCP path), only tasks that are
     unassigned OR assigned to that agent are returned — hard-assignment hiding.
-    The UI path (agent=None) sees everything."""
-    stmt = select(Task).order_by(Task.sort_order, Task.created_at)
+    Archived tasks stay accessible by ID but are omitted from task lists."""
+    stmt = select(Task).where(
+        Task.metadata_payload["board_archived"].as_boolean().is_not(True)
+    ).order_by(Task.sort_order, Task.created_at)
     if status is not None:
         stmt = stmt.where(Task.status == status)
     if agent is not None:
