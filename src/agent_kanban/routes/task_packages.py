@@ -98,13 +98,18 @@ async def put_result(task_id: int, request: Request, session: DB, agent: Agent):
             staged.close()
             if not await run_in_threadpool(is_zipfile, temporary):
                 raise HTTPException(422, "The body is not a ZIP archive")
-            _, current_result = package_paths(
-                await claimed_task(session, task_id, agent, lock=True)
-            )
+            task = await claimed_task(session, task_id, agent, lock=True)
+            _, current_result = package_paths(task)
             if current_result != result:
                 raise HTTPException(409, "Task package changed during upload")
             try:
-                await run_in_threadpool(os.link, temporary, result)
+                if task.metadata_payload.get("validation_retries", 0) > 0:
+                    # Only a rejected delivery can replace the canonical result.
+                    if result.is_symlink():
+                        raise HTTPException(409, "Invalid result path")
+                    await run_in_threadpool(os.replace, temporary, result)
+                else:
+                    await run_in_threadpool(os.link, temporary, result)
             except FileExistsError as error:
                 raise HTTPException(409, "A result already exists for this package") from error
         finally:

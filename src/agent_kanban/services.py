@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import case, type_coerce, update
+from sqlalchemy import case, type_coerce, update, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -109,6 +109,7 @@ async def update_task(session: AsyncSession, task_id: int, data: TaskUpdate) -> 
     if task is None:
         raise ValueError(f"task {task_id} not found")
     changes = data.model_dump(exclude_unset=True)
+    blocking = changes.get("status") == TaskStatus.BLOCKED and task.status != TaskStatus.BLOCKED
     finishing = changes.get("status") == TaskStatus.DONE and task.status != TaskStatus.DONE
     if finishing:
         await _lock_completion_project(session, task)
@@ -122,6 +123,8 @@ async def update_task(session: AsyncSession, task_id: int, data: TaskUpdate) -> 
     await session.commit()
     await session.refresh(task)
     await _publish_task_event("board", "task_updated", task)
+    if blocking:
+        await factory_blocked_alert(session, task)
     if finishing:
         await _publish_unblocked(session, unblocked, "user")
         await _notify(session, task, "COMPLETED", "user")
@@ -330,6 +333,7 @@ async def post_progress(
         # single authoritative "task_blocked" event for this transition.
         await session.refresh(task)
         await _publish_task_event("board", "task_blocked", task)
+        await factory_blocked_alert(session, task)
         return ev
     await event_bus.publish(
         f"task:{task_id}",
@@ -562,6 +566,7 @@ async def post_comment_with_status(
     c = Comment(task_id=task_id, author=author, content=content)
     session.add(c)
     unblocked = []
+    blocking = target_status == TaskStatus.BLOCKED and task.status != TaskStatus.BLOCKED
     finishing = target_status == TaskStatus.DONE and task.status != TaskStatus.DONE
     if finishing:
         await _lock_completion_project(session, task)
@@ -579,6 +584,8 @@ async def post_comment_with_status(
     )
     if target_status is not None:
         await _publish_task_event("board", "task_updated", task)
+    if blocking:
+        await factory_blocked_alert(session, task)
     if finishing:
         await _publish_unblocked(session, unblocked, author)
         await _notify(session, task, "COMPLETED", author)
@@ -613,6 +620,10 @@ async def post_artifact(
 
 
 # ---- Agent orchestration ----
+class DailyMVPQuotaReached(ValueError):
+    pass
+
+
 async def dispatch_task(session: AsyncSession, agent: str, data: DispatchTask) -> Task:
     await require_project(session, agent, data.project_id, "orchestrator")
     # Serialize dispatch and completion so a dependency cannot finish during dispatch.
@@ -630,6 +641,27 @@ async def dispatch_task(session: AsyncSession, agent: str, data: DispatchTask) -
             if existing.assigned_to != data.assigned_to or existing.metadata_payload != data.metadata:
                 raise ValueError("factory_dispatch_key is already used by another dispatch")
             return existing
+    if data.metadata.get("factory_mode") == "sequential" and data.metadata.get("factory_step") == "mvp":
+        from agent_kanban.config import get_settings
+        await session.execute(text("SELECT pg_advisory_xact_lock(7331004)"))
+        # Recheck after the lock: another event may have dispatched an MVP concurrently.
+        if dispatch_key is not None:
+            existing = (await session.execute(select(Task).where(
+                Task.project_id == data.project_id, Task.created_by == agent,
+                Task.metadata_payload["factory_dispatch_key"].as_string() == dispatch_key,
+            ))).scalar_one_or_none()
+            if existing is not None:
+                return existing
+        count = await session.scalar(text("""
+            SELECT count(*) FROM task
+            WHERE metadata_payload->>'factory_mode'='sequential'
+            AND metadata_payload->>'factory_step'='mvp'
+            AND (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Mexico_City')::date
+                = (now() AT TIME ZONE 'America/Mexico_City')::date
+        """))
+        if count >= get_settings().factory_max_daily_mvp:
+            await session.rollback()
+            raise DailyMVPQuotaReached("Daily MVP dispatch quota reached")
     if data.assigned_to is not None:
         await require_project(session, data.assigned_to, data.project_id, "worker")
     dependencies = list(dict.fromkeys(data.dependencies))
@@ -707,7 +739,8 @@ async def _lock_completion_project(session: AsyncSession, task: Task) -> None:
 
 
 async def review_task(
-    session: AsyncSession, task_id: int, agent: str, verdict: str, feedback: str = ""
+    session: AsyncSession, task_id: int, agent: str, verdict: str, feedback: str = "",
+    *, validation_failure: bool = False,
 ) -> Task:
     task = await require_task(session, task_id, agent, "orchestrator")
     original_project = task.project_id
@@ -720,10 +753,22 @@ async def review_task(
         unblocked = await _finish_task(session, task, agent)
         event = "APPROVED"
     elif verdict == "REJECT":
+        if validation_failure:
+            await session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:agent, 7331003))"), {"agent": task.claimed_by})
         task.status = TaskStatus.IN_PROGRESS if task.claimed_by else TaskStatus.READY
         task.updated_at = _now()
         if task.claimed_by:
             task.last_heartbeat_at = task.updated_at
+        if validation_failure:
+            retries = int(task.metadata_payload.get("validation_retries", 0)) + 1
+            task.metadata_payload = {**task.metadata_payload, "validation_retries": retries}
+            other = (await session.execute(select(Task.id).where(
+                Task.claimed_by == task.claimed_by, Task.status == TaskStatus.IN_PROGRESS,
+                Task.id != task.id,
+            ))).first()
+            if retries >= 2 or other:
+                task.status = TaskStatus.BLOCKED
+                _record_event(session, task, "BLOCKED", agent, reason=feedback)
         event = "REJECTED"
     else:
         raise ValueError("verdict must be APPROVE or REJECT")
@@ -788,9 +833,12 @@ async def heartbeat_and_progress(
 
 
 async def submit_for_review(
-    session: AsyncSession, task_id: int, agent: str, data: SubmitReview
+    session: AsyncSession, task_id: int, agent: str, data: SubmitReview,
+    *, background_tasks=None,
 ) -> Task:
     task = await _owned_task(session, task_id, agent)
+    if task.status == TaskStatus.BLOCKED and task.metadata_payload.get("validation_retries", 0) >= 2:
+        raise ValueError("Validation limit reached; explicit operator recovery required")
     task.status = TaskStatus.REVIEW
     task.updated_at = task.last_heartbeat_at = _now()
     session.add(ProgressEvent(
@@ -805,4 +853,16 @@ async def submit_for_review(
     await session.commit()
     await _publish_task_event("board", "task_review_requested", task)
     await _notify(session, task, "SUBMITTED", agent)
+    if task.metadata_payload.get("factory_mode") == "sequential":
+        from agent_kanban.factory_coordinator import schedule_event
+        schedule_event(task.metadata_payload["event_id"], background_tasks)
     return task
+
+
+async def factory_blocked_alert(session, task):
+    if task.metadata_payload.get("factory_mode") == "sequential":
+        from agent_kanban.factory_coordinator import Coordinator, supabase_client
+        from agent_kanban.config import get_settings
+        if get_settings().factory_supabase_secret_key.get_secret_value():
+            async with supabase_client() as client:
+                await Coordinator(session, client).alert(task.metadata_payload["event_id"], f"Tarjeta #{task.id} bloqueada: {task.title}")

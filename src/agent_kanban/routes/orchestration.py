@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_kanban import services
@@ -63,9 +63,9 @@ async def heartbeat(task_id: int, data: Heartbeat, session: DB, agent: Agent):
 
 
 @router.post("/{task_id}/submit", response_model=TaskRead)
-async def submit(task_id: int, data: SubmitReview, session: DB, agent: Agent):
+async def submit(task_id: int, data: SubmitReview, session: DB, agent: Agent, background_tasks: BackgroundTasks):
     try:
-        return await services.submit_for_review(session, task_id, agent, data)
+        return await services.submit_for_review(session, task_id, agent, data, background_tasks=background_tasks)
     except ValueError as error:
         raise HTTPException(409, str(error)) from error
 

@@ -1,0 +1,16 @@
+{
+  "deployed_on": "2026-11-20",
+  "timezone": "America/Mexico_City",
+  "schedule_workflow_id": "9Lby1BWDmyWfvvTd",
+  "telegram_workflow_id": "Z6euQtaOdQ2UDWnE",
+  "error_workflow_id": "WIL1go2TjyOL1s68",
+  "cloudflare_worker_version": "ab034d94-3d4c-491b-b849-ef1c01421133",
+  "mega_mcp_image": "mega-mcp-dot-bridge:20261120-event",
+  "codex_next_run": "2026-11-21T15:00:00-06:00",
+  "telegram_auth_verified": true,
+  "telegram_verification_message_id": 290,
+  "telegram_verification_execution_id": "409",
+  "telegram_credential": "openai-radar-header",
+  "daily_report_verification_execution_id": "410",
+  "daily_report_verification_status": "already_sent"
+}

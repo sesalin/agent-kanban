@@ -149,10 +149,22 @@ test("only n8n may invoke bounded factory file operations", async (t) => {
 
 
 test("coordinator and report acknowledgements are exclusive to n8n", async (t) => {
+  const env = {N8N_RADARES_CF_ACCESS_CLIENT_ID: "id", N8N_RADARES_CF_ACCESS_CLIENT_SECRET: "secret"};
+  const mock = t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, "https://kk.okehc.com/api/factory/leads");
+    assert.equal(options.headers.Authorization, undefined);
+    return Response.json({ok:true}, {status:201});
+  });
+  const endpoint = "https://kanban-api.okehc.com/api/factory/leads";
+  assert.equal((await worker.fetch(new Request(endpoint, {method:"OPTIONS"}), env)).status, 204);
+  assert.equal((await worker.fetch(new Request(endpoint, {method:"POST",body:"{}"}), env)).status, 201);
+  assert.equal((await worker.fetch(new Request(endpoint, {method:"POST",body:"x".repeat(16385)}), env)).status, 413);
+  assert.equal((await worker.fetch(new Request(endpoint), env)).status, 401);
+  mock.mock.restore();
   t.mock.method(globalThis, "fetch", async () => Response.json({status:"ok"}));
   for (const agent of ["N8N_RADARES","BACHA","BRIO","NOD"]) {
     const env = { [`${agent}_KANBAN_TOKEN`]: agent, [`${agent}_CF_ACCESS_CLIENT_ID`]: "id", [`${agent}_CF_ACCESS_CLIENT_SECRET`]: "secret" };
-    for (const path of ["/api/factory/reconcile", "/api/factory/error", "/api/factory/reports/2026-11-18/sent"]) {
+    for (const path of ["/api/factory/reconcile", "/api/factory/admit", "/api/factory/reports/daily", "/api/factory/error", "/api/factory/reports/2026-11-18/sent"]) {
       const r=new Request("https://kanban-api.okehc.com"+path,{method:"POST",headers:{Authorization:`Bearer ${agent}`},body:"{}"});
       assert.equal((await worker.fetch(r,env)).status, agent === "N8N_RADARES" ? 200 : 404);
     }

@@ -2,7 +2,8 @@
 Description=Check Codex Kanban queue every 5 minutes in its daily window
 
 [Timer]
-OnCalendar=*-*-* 16..17:00/5:00 America/Mexico_City
+OnCalendar=*-*-* 15..16:00/5:00 America/Mexico_City
+OnCalendar=*-*-* 17:00..25/5:00 America/Mexico_City
 AccuracySec=1s
 Persistent=false
 Unit=kanban-codex.service

@@ -340,7 +340,9 @@ def _validate_result(body: bytes) -> None:
 
 def factory_dot_upload_result(task_id: int, file: OpenAIFile) -> dict:
     """Upload Dot's completed workspace ZIP as a native ChatGPT file; never a server-local path."""
-    work = _work(_task(task_id, claimed=True))
+    task = _task(task_id, claimed=True)
+    work = _work(task)
+    attempt = task.get("metadata_payload", {}).get("validation_retries", 0)
     body = _download_file(file)
     _validate_result(body)
     digest = hashlib.sha256(body).hexdigest()
@@ -349,21 +351,29 @@ def factory_dot_upload_result(task_id: int, file: OpenAIFile) -> dict:
         if receipt.is_symlink():
             raise ValueError("Invalid upload receipt")
         saved = json.loads(receipt.read_text())
-        if saved["sha256"] != digest:
-            raise ValueError("A different result was already published")
-        return saved
+        if saved.get("validation_retries", 0) == attempt:
+            if saved["sha256"] != digest:
+                raise ValueError("A different result was already published")
+            return saved
     response = _request("PUT", f"/api/tasks/{task_id}/package/result", binary=body)
     saved = {
         "uploaded": True,
+        "validation_retries": attempt,
         "task_id": task_id,
         "sha256": digest,
         "bytes": len(body),
         "result_path": f"/api/tasks/{task_id}/package/result",
         "response": response,
     }
-    fd = os.open(receipt, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    with os.fdopen(fd, "w") as f:
-        json.dump(saved, f)
+    import tempfile
+    with tempfile.NamedTemporaryFile(dir=work, mode="w", delete=False) as f:
+        try:
+            os.chmod(f.name, 0o600)
+            json.dump(saved, f)
+            f.close()
+            os.replace(f.name, receipt)
+        finally:
+            Path(f.name).unlink(missing_ok=True)
     return saved
 
 

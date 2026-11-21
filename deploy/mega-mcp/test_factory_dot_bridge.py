@@ -64,7 +64,7 @@ def backend(tmp_path, monkeypatch):
         elif method == "PUT":
             assert task["status"] == "in_progress"
             result = tmp_path / "event-1/06_landing/landing.zip"
-            assert not result.exists()
+            assert not result.exists() or task["metadata_payload"].get("validation_retries", 0) > 0
             result.write_bytes(binary)
             return {"bytes": len(binary), "path": "/api/tasks/42/package/result"}
         elif path.endswith("/submit"):
@@ -120,6 +120,16 @@ def test_workspace_zip_exchange_and_idempotent_publication(backend, monkeypatch)
     assert dot.factory_dot_submit_review(42, "Built and tested locally")["status"] == "review"
     assert dot.factory_dot_submit_review(42, "Retry")["status"] == "review"
     assert sum(path.endswith("/submit") for _, path in calls) == 1
+    _task.update(status="in_progress")
+    _task["metadata_payload"]["validation_retries"] = 1
+    corrected = make_zip({"README.md": "Corrected delivery", "index.html": "Fixed"})
+    monkeypatch.setattr(dot, "_download_file", lambda file: corrected)
+    retry = dot.factory_dot_upload_result(42, result_file())
+    assert retry["validation_retries"] == 1
+    assert (root / "event-1/06_landing/landing.zip").read_bytes() == corrected
+    assert dot.factory_dot_upload_result(42, result_file()) == retry
+    assert sum(method == "PUT" for method, _ in calls) == 2
+
 
 
 def test_scope_paths_and_rejected_workspace_archives(backend, monkeypatch):

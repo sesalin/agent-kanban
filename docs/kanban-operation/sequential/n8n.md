@@ -1,5 +1,9 @@
 # n8n — coordinación determinista
 
+> **Refactor preparado (no publicado automáticamente):** el nuevo flujo,
+> horarios y sustitución del polling están en [FACTORY_RUNBOOK](../../FACTORY_RUNBOOK.md).
+> Los bloques anteriores conservados abajo describen la instalación histórica.
+
 Instancia: **https://anyo.okehc.com**. Zona: **America/Mexico_City**.
 No hay nodos de LLM ni mensajes para despertar a los agentes en estos flujos.
 

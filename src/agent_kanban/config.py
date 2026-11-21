@@ -2,7 +2,7 @@
 from functools import lru_cache
 from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # MCP streamable-HTTP transport enables DNS-rebinding protection by default and
@@ -58,6 +58,18 @@ class Settings(BaseSettings):
     factory_tasks_root: str | None = None
     factory_supabase_url: str = "https://uobeshcvmtawjxibciuy.supabase.co"
     factory_supabase_secret_key: SecretStr = SecretStr("")
+    factory_report_hour: str = "20:30"
+    factory_max_daily_mvp: int = Field(default=2, ge=0)
+    public_lead_endpoint: str = "https://kanban-api.okehc.com/api/factory/leads"
+    n8n_telegram_webhook_url: str = "https://anyo.okehc.com/webhook/factory/telegram-notify"
+    factory_webhook_secret: SecretStr = SecretStr("")
+
+    @field_validator("factory_report_hour")
+    @classmethod
+    def valid_report_hour(cls, value: str) -> str:
+        from datetime import datetime
+        return datetime.strptime(value, "%H:%M").strftime("%H:%M")
+
     bootstrap_admin_username: str = "admin"
     # MCP transport security — DNS-rebinding protection allow-lists.
     # PUBLIC_URL's hostname is auto-appended if it is non-localhost.

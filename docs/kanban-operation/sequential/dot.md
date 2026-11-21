@@ -1,5 +1,17 @@
 # Dot — desarrollo en su propio workspace y transferencia por MCP
 
+> **Refactor preparado — 20-11-2026:** al desplegarlo, los horarios de nuevos
+> reclamos de Dot son **15:00–17:30**, en `America/Mexico_City`.
+> Prevalece [FACTORY_RUNBOOK](../../FACTORY_RUNBOOK.md) sobre horarios y
+> coordinación por polling descritos más abajo. No cambia por sí solo tu
+> programación externa. **Una tarjeta en progreso a la vez. La ventana solo
+> limita reclamar: sigue trabajando, publicando avances y entregando fuera
+> de ella; ningún objetivo horario anterior obliga a cortar la tarjeta.**
+> `submit_for_review` dispara validación por evento; al primer rechazo corrige
+> la misma tarjeta/ZIP; al segundo queda bloqueada para revisión del operador.
+> Lee `lead_config.json` incluido en `landing-input.zip` y usa su endpoint
+> público para el formulario. No necesitas backend propio ni secretos.
+
 Ejecución diaria: **16:00**, zona **America/Mexico_City**. Identidad `dot`,
 proyecto **1**, etapa `landing`. Reclamos nuevos hasta **17:59**. Objetivo de
 entrega: antes de **18:45**; cierre de Bacha 19:00 e informe Telegram 19:30.

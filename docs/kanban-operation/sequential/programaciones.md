@@ -1,5 +1,9 @@
 # Programaciones vigentes desde el 20 de noviembre de 2026
 
+> **Refactor preparado (no publicado automáticamente):** el nuevo flujo,
+> horarios y sustitución del polling están en [FACTORY_RUNBOOK](../../FACTORY_RUNBOOK.md).
+> Los bloques anteriores conservados abajo describen la instalación histórica.
+
 Todos los horarios son **America/Mexico_City**, todos los días. Sustituye
 las programaciones anteriores; no agregues otra copia de la misma etapa.
 
@@ -8,7 +12,7 @@ las programaciones anteriores; no agregues otra copia de la misma etapa.
 | 12:20–22:00 cada 5 min | n8n | Conciliar tarjetas/ZIP/estados sin LLM | Publicado en anyo |
 | 12:30 | Brio | Investigación; no tomar otra después de 14:15, entregar antes de 14:45 | Su Muse; actualizar brio.md |
 | 15:00 | Bacha | Evaluar GO/NO_GO | Su Muse |
-| 16:00–17:55 cada 5 min | Codex | Revisar cola de MVP; inicia modelo solo si hay tarjeta | Timer WSL activo |
+| 15:00–17:25 cada 5 min | Codex | Ventana futura de MVP hasta antes de 17:30; una tarjeta a la vez | Timer WSL suspendido por el operador |
 | 16:00 | Bacha | Prospectos y textos comerciales | Su Muse; reemplaza turno 18:00 |
 | 16:00 | Dot | Landing mediante obsidian-mcp | Programar en su plataforma |
 | 19:00 | Bacha | Cierre de las oportunidades con todas sus ramas listas | Su Muse; reemplaza 20:30 |
@@ -54,11 +58,17 @@ el esquema JSON y el reparto; no regenera paquetes ya consumidos.
 
 ## Corrección de Codex
 
-Su timer ya consulta desde las 16:00 hasta las 17:55. No hay que crear otro.
-El lanzador lee [codex.md](codex.md) en cada trabajo, con la corrección:
-«MVP a las 16:00 en paralelo con Bacha y Dot; no esperes sus entregas.
-Entrega en tu tarjeta y continúa con la siguiente propia. Objetivo antes
-18:45 para cierre 19:00 e informe 19:30.»
+Codex continúa suspendido. La ventana futura de nuevos reclamos es
+15:00–17:30, con consultas cada cinco minutos hasta 17:25, una tarjeta a
+la vez. No crear otra programación ni reactivar el timer sin autorización.
+El lanzador lee [codex.md](codex.md) en cada trabajo.
+
+Instrucción vigente: «Entrega el flujo principal del MVP sin sobreingeniería.
+README con arranque en un comando y pruebas en las primeras diez líneas;
+3–5 pruebas automatizadas incluyendo un error crítico. Si falta un acceso
+exigido y no se autoriza MODO DEMO CON DATOS SEED, registra blocked con el
+acceso faltante. A las 17:30 no reclames otra; termina y prueba la tarjeta
+viable ya iniciada antes de empaquetar y enviar a revisión.»
 
 ## Mensaje breve a Brio
 

@@ -1,5 +1,15 @@
 # Brio — investigación por horario
 
+> **Refactor preparado — 20-11-2026:** al desplegarlo, los horarios de nuevos
+> reclamos de Brio son **10:35–12:30**, en `America/Mexico_City`.
+> Prevalece [FACTORY_RUNBOOK](../../FACTORY_RUNBOOK.md) sobre horarios y
+> coordinación por polling descritos más abajo. No cambia por sí solo tu
+> programación externa. **Una tarjeta en progreso a la vez. La ventana solo
+> limita reclamar: sigue trabajando, publicando avances y entregando fuera
+> de ella; ningún objetivo horario anterior obliga a cortar la tarjeta.**
+> `submit_for_review` dispara validación por evento; al primer rechazo corrige
+> la misma tarjeta/ZIP; al segundo queda bloqueada para revisión del operador.
+
 Programa una ejecución diaria a las **12:30**, zona **America/Mexico_City**.
 Ventana para reclamar: 12:30–14:59. Deja de iniciar trabajos a las 14:15 y
 procura terminar la sesión antes de las 15:00, cuando comienza Bacha. Si una

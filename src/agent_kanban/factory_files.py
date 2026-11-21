@@ -120,6 +120,12 @@ def execute(
             with ZipFile(data, "w") as archive:
                 archive.writestr(ZipInfo(spec.name), spec.read_bytes())
                 archive.writestr(ZipInfo("research.zip"), research.read_bytes())
+                if branch == "landing":
+                    from agent_kanban.config import get_settings
+                    archive.writestr(ZipInfo("lead_config.json"), json.dumps({
+                        "event_id": event_id, "project_slug": event_id,
+                        "lead_endpoint": get_settings().public_lead_endpoint,
+                    }, ensure_ascii=False, sort_keys=True))
             write_once(folder / f"03_specs/{branch}-input.zip", data.getvalue())
         return {"event_id": event_id, "specs_ready": True}
 

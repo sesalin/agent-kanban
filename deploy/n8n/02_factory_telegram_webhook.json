@@ -1,0 +1,198 @@
+{
+  "name": "Fábrica - Telegram por webhook",
+  "active": false,
+  "nodes": [
+    {
+      "id": "97d254e8-f78c-46d3-abae-3e3604913d08",
+      "name": "Recibir notificación autenticada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "factory/telegram-notify",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "81a30318-1e8d-410f-bee4-156aa3d87bef",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WXW1Qq0Mn5l5wcDr",
+          "name": "openai-radar-header"
+        }
+      }
+    },
+    {
+      "id": "0e3fb8ac-4ac3-4087-a67f-2f41ad6c197d",
+      "name": "Validar notificación",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "87e7990e-c829-4f1d-a095-a1bdae310b78",
+              "leftValue": "={{ ['daily_report','alert'].includes($json.body?.type) && typeof $json.body?.message === 'string' && $json.body.message.trim().length > 0 && $json.body.message.length <= 3900 && ($json.body.type === 'alert' ? typeof $json.body.event_id === 'string' : /^\\d{4}-\\d{2}-\\d{2}$/.test($json.body.report_date)) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "09471e94-b263-4c3a-849d-b702d70986a0",
+      "name": "Enviar mensaje",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        -100
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "7946431920",
+        "text": "={{ $json.body.message.replaceAll(\"&\",\"&amp;\").replaceAll(\"<\",\"&lt;\").replaceAll(\">\",\"&gt;\") }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "PBFnJlQqPiAUFCsH",
+          "name": "Telegram Cheko"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "0e9fa0af-b0d5-47a3-aed3-b1817d444d63",
+      "name": "Confirmar envío",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        740,
+        -160
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok: true, telegram_message_id: Number($json.result?.message_id ?? $json.message_id)} }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "11a94ae6-1237-475f-b216-c9d5220f20ad",
+      "name": "Rechazar datos",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok: false, error: \"invalid_notification\"} }}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    },
+    {
+      "id": "a2341133-d184-4418-a528-b98b743d6af4",
+      "name": "Informar fallo Telegram",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        740,
+        80
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok: false, error: \"telegram_delivery_failed\"} }}",
+        "options": {
+          "responseCode": 502
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Recibir notificación autenticada": {
+      "main": [
+        [
+          {
+            "node": "Validar notificación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar notificación": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechazar datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar mensaje": {
+      "main": [
+        [
+          {
+            "node": "Confirmar envío",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Informar fallo Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "America/Mexico_City",
+    "executionOrder": "v1",
+    "executionTimeout": 30,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  }
+}

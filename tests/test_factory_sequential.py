@@ -18,7 +18,7 @@ from agent_kanban.factory_coordinator import Coordinator, next_step, pending_ste
 from agent_kanban.factory_schedule import ZONE, slot_open
 from agent_kanban.models import AgentProject, Project, Task, TaskStatus
 from agent_kanban.routes.task_packages import package_paths
-from agent_kanban.schemas import SubmitReview
+from agent_kanban.schemas import DispatchTask, SubmitReview
 
 
 def archive(files):
@@ -77,6 +77,13 @@ async def make_coordinator(session, monkeypatch, tmp_path, factory_pg):
 
     async def request(req):
         name = req.url.path.rsplit("/", 1)[-1]
+        if req.method == "GET" and name == "opportunity_pipelines":
+            event = req.url.params.get("event_id", "eq.")[3:]
+            rows = await factory_pg.fetch(
+                "SELECT row_to_json(p) AS value FROM opportunity_pipelines p WHERE event_id=$1",
+                event,
+            )
+            return httpx.Response(200, json=[json.loads(row["value"]) for row in rows])
         args = json.loads(req.content)
         allowed = {"factory_seq_start", "factory_seq_record_task", "factory_seq_complete"}
         assert name in allowed
@@ -186,6 +193,14 @@ async def test_sequential_cycle_cards_zip_and_retry(session, monkeypatch, tmp_pa
                     ).ok
             assert task.assigned_to == actor and task.claimed_by == actor
             source, result = package_paths(task)
+            if step == "landing":
+                with ZipFile(source) as z:
+                    config = json.loads(z.read("lead_config.json"))
+                    assert config == {
+                        "event_id": p["event_id"],
+                        "project_slug": p["event_id"],
+                        "lead_endpoint": get_settings().public_lead_endpoint,
+                    }
             assert source.is_file()
             result.write_bytes(archive(files[step]))
             await services.submit_for_review(
@@ -194,11 +209,51 @@ async def test_sequential_cycle_cards_zip_and_retry(session, monkeypatch, tmp_pa
             p = await c.advance(p)
             await session.refresh(task)
             assert task.status == TaskStatus.DONE
+        # A repeated dispatch does not spend quota; a third new MVP is deferred.
+        existing_mvp = await session.get(Task, int(p["mvp_task_id"]))
+        assert (
+            await services.dispatch_task(
+                session,
+                "n8n-radares",
+                DispatchTask(
+                    project_id=1,
+                    title=existing_mvp.title,
+                    assigned_to="codex",
+                    metadata=existing_mvp.metadata_payload,
+                ),
+            )
+        ).id == existing_mvp.id
+        extra = DispatchTask(
+            project_id=1,
+            title="Second daily MVP",
+            assigned_to="codex",
+            metadata={
+                "factory_mode": "sequential",
+                "factory_step": "mvp",
+                "factory_dispatch_key": "quota-2:sequential:mvp",
+            },
+        )
+        second = await services.dispatch_task(session, "n8n-radares", extra)
+        second_id = second.id
+        with pytest.raises(services.DailyMVPQuotaReached):
+            await services.dispatch_task(
+                session,
+                "n8n-radares",
+                extra.model_copy(
+                    update={
+                        "metadata": {
+                            **extra.metadata,
+                            "factory_dispatch_key": "quota-3:sequential:mvp",
+                        }
+                    }
+                ),
+            )
+        ids.append(second_id)
         assert p["stage"] == "DONE"
         assert next_step(p) is None
         assert (await c.advance(p))["stage"] == "DONE"
         count = (await session.execute(select(Task.id))).scalars().all()
-        assert set(count) == set(ids) and len(count) == 6
+        assert set(count) == set(ids) and len(count) == 7
         assert (
             tmp_path / p["event_id"] / "07_release/resumen_ejecutivo.md"
         ).read_text() == "Verified complete"
@@ -306,12 +361,12 @@ async def test_muse_exclusion_atomic_and_window(session, db_url, monkeypatch):
     finally:
         await engine.dispose()
     for step, start, end in [
-        ("research", 12 * 60 + 30, 15 * 60),
-        ("evaluation", 15 * 60, 16 * 60),
-        ("mvp", 16 * 60, 18 * 60),
-        ("prospection", 16 * 60, 18 * 60),
-        ("landing", 16 * 60, 18 * 60),
-        ("final", 19 * 60, 19 * 60 + 30),
+        ("research", 10 * 60 + 35, 12 * 60 + 30),
+        ("evaluation", 13 * 60, 14 * 60 + 30),
+        ("mvp", 15 * 60, 17 * 60 + 30),
+        ("prospection", 15 * 60, 17 * 60 + 30),
+        ("landing", 15 * 60, 17 * 60 + 30),
+        ("final", 18 * 60 + 30, 19 * 60 + 30),
     ]:
 
         def at(minute):
@@ -342,41 +397,44 @@ def test_codex_launcher_does_not_start_model_for_empty_queue(monkeypatch, tmp_pa
     assert json.loads(capsys.readouterr().out)["ready_task_ids"] == []
 
 
-async def test_daily_report_persists_once_and_outside_window_does_nothing(
+async def test_daily_report_push_idempotency_and_manual_rescue(
     session, monkeypatch, tmp_path
 ):
+    from unittest.mock import AsyncMock
+
     monkeypatch.setenv("MUSE_PACKAGES_ROOT", str(tmp_path))
     get_settings.cache_clear()
     reports = []
-    requests = []
+    push = AsyncMock(return_value={"ok": True, "telegram_message_id": 123})
+    monkeypatch.setattr("agent_kanban.factory_coordinator.telegram_push", push)
 
     async def request(req):
-        requests.append((req.method, req.url.path))
         table = req.url.path.rsplit("/", 1)[-1]
-        if table == "opportunity_pipelines":
-            return httpx.Response(200, json=[])
-        if table == "factory_runtime":
+        if table in ("opportunity_pipelines", "factory_runtime"):
             return httpx.Response(200, json=[])
         assert table == "factory_daily_reports"
         if req.method == "POST":
             reports.append(json.loads(req.content))
             return httpx.Response(201)
+        if req.method == "PATCH":
+            reports[0].update(json.loads(req.content))
+            return httpx.Response(200, json=reports)
         return httpx.Response(200, json=reports)
 
     async with httpx.AsyncClient(
         base_url="https://test", transport=httpx.MockTransport(request)
     ) as client:
         c = Coordinator(session, client)
-        assert (await c.tick(datetime(2026, 11, 18, 12, 15, tzinfo=ZONE)))[
+        assert (await c.daily_report(datetime(2026, 11, 18, 20, 30, tzinfo=ZONE)))[
             "status"
-        ] == "outside_window"
-        assert requests == []
-        for _ in range(2):
-            response = await c.tick(datetime(2026, 11, 18, 19, 30, tzinfo=ZONE))
-            assert response["report"]["report_date"] == "2026-11-18"
-        assert len(reports) == 1
+        ] == "sent"
+        assert (await c.daily_report(datetime(2026, 11, 18, 20, 30, tzinfo=ZONE)))[
+            "status"
+        ] == "already_sent"
+        assert (await c.tick(datetime(2026, 11, 18, 23, 30, tzinfo=ZONE)))["checked"] == 0
+        assert len(reports) == 1 and reports[0]["telegram_message_id"] == 123
+        push.assert_awaited_once()
         assert "RESEARCH: 0" in reports[0]["message"]
-        assert "Paquetes con incidencia de origen: 0" in reports[0]["message"]
 
 
 async def test_bad_source_does_not_block_available_package(session, monkeypatch, tmp_path):
@@ -407,9 +465,13 @@ async def test_bad_source_does_not_block_available_package(session, monkeypatch,
     async with httpx.AsyncClient(
         base_url="https://test", transport=httpx.MockTransport(request)
     ) as client:
-        result = await Coordinator(session, client).tick(
-            datetime(2026, 11, 18, 12, 20, tzinfo=ZONE)
-        )
+        c = Coordinator(session, client)
+
+        async def no_event(event_id):
+            return None
+
+        monkeypatch.setattr(c, "event", no_event)
+        result = await c.admit(datetime(2026, 11, 18, 10, 30, tzinfo=ZONE))
     assert result["seeded"] == 1
     assert any(issue["id"] == "source:bad-source" for issue in issues)
     assert (tmp_path / "good-source/01_input/paquete.zip").read_bytes() == (

@@ -1,5 +1,15 @@
 # Bacha — evaluación, prospección y cierre
 
+> **Refactor preparado — 20-11-2026:** al desplegarlo, los horarios de nuevos
+> reclamos de Bacha son **13:00–14:30 evaluación; 15:00–17:30 prospección; 18:30–19:30 cierre**, en `America/Mexico_City`.
+> Prevalece [FACTORY_RUNBOOK](../../FACTORY_RUNBOOK.md) sobre horarios y
+> coordinación por polling descritos más abajo. No cambia por sí solo tu
+> programación externa. **Una tarjeta en progreso a la vez. La ventana solo
+> limita reclamar: sigue trabajando, publicando avances y entregando fuera
+> de ella; ningún objetivo horario anterior obliga a cortar la tarjeta.**
+> `submit_for_review` dispara validación por evento; al primer rechazo corrige
+> la misma tarjeta/ZIP; al segundo queda bloqueada para revisión del operador.
+
 Usa tres ejecuciones diarias en **America/Mexico_City**:
 
 | Inicio | Ventana de nuevos reclamos | `factory_step` |

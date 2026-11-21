@@ -11,12 +11,12 @@ from agent_kanban.models import Task, TaskStatus
 ZONE = ZoneInfo("America/Mexico_City")
 # Windows allow finishing an existing claim after the end; only new claims are gated.
 SLOTS = {
-    "research": (750, 900),
-    "evaluation": (900, 960),
-    "mvp": (960, 1080),
-    "prospection": (960, 1080),
-    "landing": (960, 1080),
-    "final": (1140, 1170),
+    "research": (635, 750),
+    "evaluation": (780, 870),
+    "mvp": (900, 1050),
+    "prospection": (900, 1050),
+    "landing": (900, 1050),
+    "final": (1110, 1170),
 }
 ACTORS = {
     "research": "brio",
@@ -47,6 +47,17 @@ async def claim_blocker(session, task, agent):
             return "invalid factory step or identity"
         if not slot_open(step):
             return "outside the daily factory window (America/Mexico_City)"
+    # Serialize claims for the same identity across every project and app process.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:agent, 7331003))"),
+        {"agent": agent},
+    )
+    active = (await session.execute(select(Task).where(
+        Task.claimed_by == agent, Task.status == TaskStatus.IN_PROGRESS,
+        Task.id != task.id,
+    ))).scalars().first()
+    if active:
+        return f"WIP=1: {agent} busy on task {active.id}"
     if agent in ("brio", "bacha"):
         # Serialize all Muse claims, including legacy cards, until the claiming transaction commits.
         await session.execute(text("SELECT pg_advisory_xact_lock(7331002)"))

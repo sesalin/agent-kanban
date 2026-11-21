@@ -10,8 +10,8 @@ function digest(value) {
 
 function allowed(method, path, agent) {
   if (agent === "N8N_RADARES") {
-    if (method === "GET") return /^\/api\/tasks\/[0-9]+$/.test(path);
-    return method === "POST" && (path === "/api/tasks/dispatch" || ["/api/factory/reconcile", "/api/factory/error"].includes(path) || /^\/api\/factory\/reports\/\d{4}-\d{2}-\d{2}\/sent$/.test(path) || /^\/api\/factory\/files\/(?:input|specs|verify|wakeup|release)$/.test(path) || /^\/api\/tasks\/[0-9]+\/review$/.test(path));
+    if (method === "GET") return path === "/api/factory/leads" || /^\/api\/tasks\/[0-9]+$/.test(path);
+    return method === "POST" && (path === "/api/tasks/dispatch" || ["/api/factory/reconcile", "/api/factory/admit", "/api/factory/reports/daily", "/api/factory/error"].includes(path) || /^\/api\/factory\/reports\/\d{4}-\d{2}-\d{2}\/sent$/.test(path) || /^\/api\/factory\/files\/(?:input|specs|verify|wakeup|release)$/.test(path) || /^\/api\/tasks\/[0-9]+\/review$/.test(path));
   }
   if (["BRIO", "CODEX", "INSTINCT", "DOT"].includes(agent)) {
     if (method === "GET") {
@@ -49,6 +49,41 @@ function failure(status, detail) {
 export default {
   async fetch(request, env) {
     const { hostname, pathname, protocol, search } = new URL(request.url);
+    const publicLead = pathname === "/api/factory/leads" && ["POST", "OPTIONS"].includes(request.method);
+    if (publicLead && protocol === "https:" && hostname === publicHost) {
+      const cors = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Cache-Control": "no-store"};
+      if (request.method === "OPTIONS") return new Response(null, {status: 204, headers: cors});
+      const accessId = env.N8N_RADARES_CF_ACCESS_CLIENT_ID;
+      const accessSecret = env.N8N_RADARES_CF_ACCESS_CLIENT_SECRET;
+      if (!accessId || !accessSecret) return Response.json({detail: "Gateway is not configured"}, {status: 503, headers: cors});
+      // Bound public form bodies before forwarding to the protected origin.
+      const reader = request.body?.getReader();
+      const chunks = [];
+      let size = 0;
+      if (reader) {
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 16384) {
+            await reader.cancel();
+            return Response.json({detail: "Lead payload too large"}, {status: 413, headers: cors});
+          }
+          chunks.push(value);
+        }
+      }
+      try {
+        const upstream = await fetch(origin + pathname, {method: "POST", redirect: "manual",
+          headers: {"Content-Type": "application/json", "CF-Access-Client-Id": accessId, "CF-Access-Client-Secret": accessSecret},
+          body: new Blob(chunks)});
+        if (!upstream.headers.get("Content-Type")?.includes("application/json") || upstream.status >= 300 && upstream.status < 400) {
+          return Response.json({detail: "Unexpected lead upstream"}, {status: 502, headers: cors});
+        }
+        return new Response(upstream.body, {status: upstream.status, headers: {...cors, "Content-Type": "application/json"}});
+      } catch {
+        return Response.json({detail: "Lead upstream unavailable"}, {status: 502, headers: cors});
+      }
+    }
     const mcp = pathname === "/mcp" || pathname === "/mcp/";
     const allowedRoute = mcp ? ["GET", "POST", "DELETE"].includes(request.method) :
       agents.some((agent) => allowed(request.method, pathname, agent));

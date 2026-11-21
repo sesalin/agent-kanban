@@ -39,7 +39,7 @@ def main():
     )
     args = parser.parse_args()
     now = datetime.now(ZoneInfo("America/Mexico_City"))
-    if not args.check and not 16 <= now.hour < 18:
+    if not args.check and not 900 <= now.hour * 60 + now.minute < 1050:
         print("outside_window")
         return
     token = os.environ.get("CODEX_KANBAN_TOKEN", "")

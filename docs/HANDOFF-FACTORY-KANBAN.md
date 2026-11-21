@@ -1,8 +1,23 @@
 # Hand-off: Agent Kanban y fábrica de oportunidades
 
+> **Suspendido por instrucción del operador — 20-11-2026.**
+> El worker de MVP `kanban-codex.service` está detenido y el temporizador
+> `kanban-codex.timer` deshabilitado. No hay próxima ejecución programada.
+> No reactivarlo sin nueva instrucción del operador. Las tarjetas y archivos
+> se conservan; una tarjeta en progreso no acredita un proceso ejecutándose.
+> Los horarios descritos más abajo son la configuración previa, no una
+> autorización para reanudar. n8n y los demás agentes no se suspendieron.
+
 **Corte:** 19 de noviembre de 2026, aproximadamente 21:15, hora de Ciudad de México.
 **Zona horaria única:** `America/Mexico_City`.
 **Objetivo:** que otro agente pueda entender, operar y continuar el montaje sin reconstruir el chat.
+
+**Actualización posterior:** consulta el [segundo hand-off](HANDOFF-FACTORY-KANBAN-02.md)
+y la [guía vigente de Codex](kanban-operation/sequential/codex.md). El operador
+cambió la ventana futura del MVP a 15:00–17:30, con una tarjeta a la vez,
+README de arranque inmediato, 3–5 pruebas y bloqueo explícito por falta de
+accesos. Codex sigue suspendido; el horario histórico de este documento no
+es una orden de reanudación.
 
 ## 1. Punto exacto de continuación
 

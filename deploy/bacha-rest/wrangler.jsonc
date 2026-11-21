@@ -7,7 +7,17 @@
   "preview_urls": false,
   "observability": {
     "enabled": true,
-    "traces": { "enabled": true }
+    "traces": {
+      "enabled": true
+    }
   },
-  "routes": [{ "pattern": "kanban-api.okehc.com", "custom_domain": true }]
+  "routes": [
+    {
+      "pattern": "kanban-api.okehc.com",
+      "custom_domain": true
+    }
+  ],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
 }

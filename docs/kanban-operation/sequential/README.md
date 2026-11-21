@@ -1,9 +1,19 @@
 # Operación del pipeline secuencial
 
+> **Refactor preparado (no publicado automáticamente):** el nuevo flujo,
+> horarios y sustitución del polling están en [FACTORY_RUNBOOK](../../FACTORY_RUNBOOK.md).
+> Los bloques anteriores conservados abajo describen la instalación histórica.
+
 Montaje del **18 de noviembre de 2026**. Este es el contrato vigente; sustituye
 la coordinación de fábrica por eventos. Instancia n8n: **anyo.okehc.com**.
 Proyecto Kanban: **1**. Base: **radars-n8n**, `uobeshcvmtawjxibciuy`.
 Zona horaria de todos los horarios: **America/Mexico_City**.
+
+**Actualización de Codex — 20-11-2026:** el worker y timer están suspendidos
+por el operador. Su nueva ventana futura es 15:00–17:30, una tarjeta a la vez,
+según [codex.md](codex.md). Las referencias históricas de las 16:00 y a un
+timer activo más abajo no autorizan reanudar. Esta actualización solo ajusta
+las instrucciones de Codex, no los turnos de los demás agentes.
 
 ## Estado del montaje
 
@@ -73,7 +83,7 @@ el trabajo reclamado se prolongó después de la ventana.
 | 12:20 | Preparar investigación y conciliar estados | n8n |
 | 12:30 | Investigación | Brio |
 | 15:00 | Evaluación GO/NO_GO | Bacha |
-| 16:00 | MVP | Codex |
+| 15:00–17:30 | Ventana futura de MVP; suspendida hasta nueva orden | Codex |
 | 16:00 | Prospección, en paralelo con MVP y landing | Bacha |
 | 16:00 | Landing, en paralelo con MVP y prospección | Dot |
 | 19:00 | Revisión final de oportunidades completas | Bacha |
@@ -82,8 +92,8 @@ el trabajo reclamado se prolongó después de la ventana.
 n8n concilia cada cinco minutos de 12:20 a 22:00. Admite nuevas oportunidades
 con ZIP entre 12:20 y 14:59; los resultados nuevos posteriores quedan para
 el día siguiente. Puede preparar una tarjeta antes del turno del agente,
-pero el servidor no permite reclamarla fuera de su horario. Codex consulta
-su cola cada cinco minutos de 16:00 a 17:55, sin modelo si está vacía.
+pero el servidor no permite reclamarla fuera de su horario. Codex tiene configurada su consulta futura cada cinco minutos de 15:00 a
+17:25, sin modelo si está vacía; su timer permanece suspendido.
 
 ## Archivos para entregar a los agentes
 

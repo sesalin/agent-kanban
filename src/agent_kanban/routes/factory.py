@@ -97,4 +97,21 @@ async def workflow_failed(data: WorkflowFailure, session: DB, agent: FactoryAgen
                 "updated_at": datetime.now(UTC).isoformat(),
             },
         )
+        await Coordinator(session, client).alert("n8n", f"Fallo crítico n8n: workflow={data.workflow_id}; execution={data.execution_id}")
     return {"recorded": True}
+
+
+@router.post("/admit")
+async def admit_factory(session: DB, agent: FactoryAgent):
+    from agent_kanban.factory_coordinator import reconcile
+    return await reconcile(session, "admit")
+
+
+@router.post("/reports/daily")
+async def daily_report(session: DB, agent: FactoryAgent):
+    from agent_kanban.factory_coordinator import reconcile
+    from agent_kanban.factory_schedule import local_now
+    settings = get_settings()
+    if local_now().strftime("%H:%M") < settings.factory_report_hour:
+        return {"status": "not_due", "report_hour": settings.factory_report_hour}
+    return await reconcile(session, "daily_report")
